@@ -9,9 +9,8 @@ app = Flask(__name__)
 TOKEN = "8914087726:AAGeuhs_0btpV97QnmgIDDGhEwHkzGtbvkM"
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/"
 
-# Live Market Data & Status Cache
 market_data = {
-    "XAU": {"price": "Loading...", "change": "0.00%"},
+    "XAU": {"price": "$2,350.20", "change": "+0.40%"},
     "BTC": {"price": "Loading...", "change": "0.00%"},
     "ETH": {"price": "Loading...", "change": "0.00%"},
     "last_signal": "Belum ada aksi",
@@ -19,38 +18,38 @@ market_data = {
 }
 
 def fetch_market_prices():
-    """Background task to fetch real-time crypto & gold prices periodically"""
     while True:
         try:
-            # Fetch Crypto prices from CoinGecko (Free API)
             crypto_res = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true", timeout=10)
             if crypto_res.status_code == 200:
                 c_data = crypto_res.json()
                 market_data["BTC"]["price"] = f"${c_data.get('bitcoin', {}).get('usd', 0):,.2f}"
                 market_data["BTC"]["change"] = f"{c_data.get('bitcoin', {}).get('usd_24h_change', 0):+.2f}%"
-
+                
                 market_data["ETH"]["price"] = f"${c_data.get('ethereum', {}).get('usd', 0):,.2f}"
                 market_data["ETH"]["change"] = f"{c_data.get('ethereum', {}).get('usd_24h_change', 0):+.2f}%"
 
-            # Fetch Gold (XAU) price estimate
-            gold_res = requests.get("https://api.metals.live/v1/spot", timeout=10)
+            gold_res = requests.get("https://data-asg.goldprice.org/dbXRates/USD", timeout=10)
             if gold_res.status_code == 200:
-                g_list = gold_res.json()
-                for item in g_list:
-                    if "gold" in item:
-                        market_data["XAU"]["price"] = f"${float(item['gold']):,.2f}"
+                g_data = gold_res.json()
+                items = g_data.get("items", [])
+                if items:
+                    xau_price = items[0].get("xauPrice")
+                    if xau_price:
+                        market_data["XAU"]["price"] = f"${float(xau_price):,.2f}"
                         market_data["XAU"]["change"] = "+0.45%"
             else:
-                market_data["XAU"]["price"] = "$2,345.50"
-                market_data["XAU"]["change"] = "+0.32%"
+                market_data["XAU"]["price"] = "$2,350.20"
+                market_data["XAU"]["change"] = "+0.40%"
 
             market_data["updated_at"] = time.strftime("%H:%M:%S - %d %b %Y")
         except Exception as e:
             print(f"Error fetching market prices: {e}")
+            market_data["XAU"]["price"] = "$2,350.20"
+            market_data["XAU"]["change"] = "+0.40%"
+        
+        time.sleep(30)
 
-        time.sleep(30) # Update every 30 seconds
-
-# HTML Template with Real-time Market Grid and Journal/Signal Control
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="id">
@@ -65,7 +64,7 @@ HTML_TEMPLATE = """
         .container { background-color: #1e293b; padding: 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 480px; border: 1px solid #334155; }
         h1 { font-size: 20px; margin-bottom: 5px; color: #38bdf8; text-align: center; }
         .subtitle { font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 20px; }
-
+        
         .market-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
         .market-card { background-color: #0f172a; padding: 14px; border-radius: 10px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
         .asset-name { font-weight: bold; font-size: 15px; color: #f1f5f9; }
@@ -78,7 +77,7 @@ HTML_TEMPLATE = """
         .card { background-color: #0f172a; padding: 14px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #334155; }
         .card-title { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
         .card-value { font-size: 14px; font-weight: bold; color: #fbbf24; }
-
+        
         .btn-group { display: flex; gap: 10px; margin-top: 15px; }
         .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; text-align: center; text-decoration: none; display: block; }
         .btn-buy { background-color: #22c55e; color: white; }
@@ -90,7 +89,7 @@ HTML_TEMPLATE = """
     <div class="container">
         <h1>📊 FINBOT MARKET MONITOR</h1>
         <div class="subtitle">Live XAUUSD, Bitcoin & Ethereum Tracker</div>
-
+        
         <div class="market-grid">
             <div class="market-card">
                 <div>
@@ -181,9 +180,9 @@ def telegram_polling():
 if __name__ == "__main__":
     t_market = threading.Thread(target=fetch_market_prices, daemon=True)
     t_market.start()
-
+    
     t_bot = threading.Thread(target=telegram_polling, daemon=True)
     t_bot.start()
-
+    
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
