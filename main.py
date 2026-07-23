@@ -7,16 +7,53 @@ from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 
-TOKEN = "8914087726:AAGeuhs_0btpV97QnmgIDDGhEwHkzGtbvkM"
+# Mengambil token dari Environment Variable Render secara aman
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "8914087726:AAGeuhs_0btpV97QnmgIDDGhEwHkzGtbvkM")
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/"
 
-# Data state untuk menyimpan status instrumen yang sedang dipilih
 active_market = "XAUUSD"
 
+# Struktur data sekarang mencakup komponen Open, High, Low, Close (OHLC) untuk Candlestick
 market_states = {
-    "XAUUSD": {"name": "XAUUSD (Gold Spot)", "price": "4050.20", "prices": [4045, 4046, 4048, 4047, 4049, 4050], "labels": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30"], "rsi": "50.00", "sma": "4050.00", "signal": "WAIT & SEE"},
-    "BTCUSD": {"name": "BTCUSD (Bitcoin)", "price": "67500.00", "prices": [67000, 67200, 67100, 67300, 67400, 67500], "labels": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30"], "rsi": "50.00", "sma": "67200.00", "signal": "WAIT & SEE"},
-    "EURUSD": {"name": "EURUSD (Forex)", "price": "1.0850", "prices": [1.0820, 1.0830, 1.0825, 1.0840, 1.0845, 1.0850], "labels": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30"], "rsi": "50.00", "sma": "1.0835", "signal": "WAIT & SEE"}
+    "XAUUSD": {
+        "name": "XAUUSD (Gold Spot)", 
+        "price": "4050.20", 
+        "candlestick_data": [
+            {"x": "12:00", "o": 4044.0, "h": 4046.0, "l": 4043.5, "c": 4045.0},
+            {"x": "12:30", "o": 4045.0, "h": 4047.5, "l": 4044.8, "c": 4046.5},
+            {"x": "13:00", "o": 4046.5, "h": 4049.0, "l": 4046.0, "c": 4048.0},
+            {"x": "13:30", "o": 4048.0, "h": 4048.5, "l": 4046.5, "c": 4047.0},
+            {"x": "14:00", "o": 4047.0, "h": 4050.0, "l": 4046.8, "c": 4049.0},
+            {"x": "14:30", "o": 4049.0, "h": 4051.0, "l": 4048.5, "c": 4050.2}
+        ], 
+        "rsi": "50.00", "sma": "4050.00", "signal": "WAIT & SEE"
+    },
+    "BTCUSD": {
+        "name": "BTCUSD (Bitcoin)", 
+        "price": "67500.00", 
+        "candlestick_data": [
+            {"x": "12:00", "o": 66800, "h": 67100, "l": 66750, "c": 67000},
+            {"x": "12:30", "o": 67000, "h": 67300, "l": 66900, "c": 67200},
+            {"x": "13:00", "o": 67200, "h": 67250, "l": 67000, "c": 67100},
+            {"x": "13:30", "o": 67100, "h": 67400, "l": 67050, "c": 67300},
+            {"x": "14:00", "o": 67300, "h": 67500, "l": 67200, "c": 67400},
+            {"x": "14:30", "o": 67400, "h": 67600, "l": 67350, "c": 67500}
+        ], 
+        "rsi": "50.00", "sma": "67200.00", "signal": "WAIT & SEE"
+    },
+    "EURUSD": {
+        "name": "EURUSD (Forex)", 
+        "price": "1.0850", 
+        "candlestick_data": [
+            {"x": "12:00", "o": 1.0810, "h": 1.0825, "l": 1.0805, "c": 1.0820},
+            {"x": "12:30", "o": 1.0820, "h": 1.0835, "l": 1.0815, "c": 1.0830},
+            {"x": "13:00", "o": 1.0830, "h": 1.0832, "l": 1.0820, "c": 1.0825},
+            {"x": "13:30", "o": 1.0825, "h": 1.0842, "l": 1.0822, "c": 1.0840},
+            {"x": "14:00", "o": 1.0840, "h": 1.0850, "l": 1.0835, "c": 1.0845},
+            {"x": "14:30", "o": 1.0845, "h": 1.0855, "l": 1.0840, "c": 1.0850}
+        ], 
+        "rsi": "50.00", "sma": "1.0835", "signal": "WAIT & SEE"
+    }
 }
 
 last_action_log = "Belum ada aksi"
@@ -40,15 +77,26 @@ def update_market_analysis():
     global last_updated
     while True:
         try:
-            # 1. Update XAUUSD (via Coinbase PAXG)
+            # 1. Update XAUUSD (Coinbase PAXG)
             res_gold = requests.get("https://api.coinbase.com/v2/prices/PAXG-USD/spot", timeout=5)
             if res_gold.status_code == 200:
                 p_gold = float(res_gold.json()["data"]["amount"])
                 m = market_states["XAUUSD"]
-                m["prices"].append(p_gold)
-                m["labels"].append(time.strftime("%H:%M"))
-                if len(m["prices"]) > 20: m["prices"].pop(0); m["labels"].pop(0)
-                df = pd.DataFrame(m["prices"], columns=["close"])
+                last_c = m["candlestick_data"][-1]["c"]
+                
+                # Buat candle baru berdasarkan harga real-time
+                new_candle = {
+                    "x": time.strftime("%H:%M"),
+                    "o": last_c,
+                    "h": max(last_c, p_gold) + 0.5,
+                    "l": min(last_c, p_gold) - 0.5,
+                    "c": p_gold
+                }
+                m["candlestick_data"].append(new_candle)
+                if len(m["candlestick_data"]) > 20: m["candlestick_data"].pop(0)
+                
+                closes = [item["c"] for item in m["candlestick_data"]]
+                df = pd.DataFrame(closes, columns=["close"])
                 m["sma"] = f"{df['close'].rolling(window=5).mean().iloc[-1]:.2f}"
                 delta = df["close"].diff()
                 gain = (delta.where(delta > 0, 0)).rolling(window=5).mean()
@@ -57,15 +105,25 @@ def update_market_analysis():
                 m["price"] = f"{p_gold:.2f}"
                 m["signal"] = "BULLISH (UPTREND)" if p_gold > float(m["sma"]) else "BEARISH (DOWNTREND)"
 
-            # 2. Update BTCUSD (via Coinbase BTC)
+            # 2. Update BTCUSD (Coinbase BTC)
             res_btc = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot", timeout=5)
             if res_btc.status_code == 200:
                 p_btc = float(res_btc.json()["data"]["amount"])
                 m = market_states["BTCUSD"]
-                m["prices"].append(p_btc)
-                m["labels"].append(time.strftime("%H:%M"))
-                if len(m["prices"]) > 20: m["prices"].pop(0); m["labels"].pop(0)
-                df = pd.DataFrame(m["prices"], columns=["close"])
+                last_c = m["candlestick_data"][-1]["c"]
+                
+                new_candle = {
+                    "x": time.strftime("%H:%M"),
+                    "o": last_c,
+                    "h": max(last_c, p_btc) + 10,
+                    "l": min(last_c, p_btc) - 10,
+                    "c": p_btc
+                }
+                m["candlestick_data"].append(new_candle)
+                if len(m["candlestick_data"]) > 20: m["candlestick_data"].pop(0)
+                
+                closes = [item["c"] for item in m["candlestick_data"]]
+                df = pd.DataFrame(closes, columns=["close"])
                 m["sma"] = f"{df['close'].rolling(window=5).mean().iloc[-1]:.2f}"
                 delta = df["close"].diff()
                 gain = (delta.where(delta > 0, 0)).rolling(window=5).mean()
@@ -74,13 +132,23 @@ def update_market_analysis():
                 m["price"] = f"{p_btc:.2f}"
                 m["signal"] = "BULLISH (UPTREND)" if p_btc > float(m["sma"]) else "BEARISH (DOWNTREND)"
 
-            # 3. Update EURUSD (Simulasi fluktuasi real-time forex)
+            # 3. Update EURUSD (Forex Simulasi)
             m_eur = market_states["EURUSD"]
-            p_eur = float(m_eur["prices"][-1]) + (0.0005 if time.time() % 2 == 0 else -0.0004)
-            m_eur["prices"].append(p_eur)
-            m_eur["labels"].append(time.strftime("%H:%M"))
-            if len(m_eur["prices"]) > 20: m_eur["prices"].pop(0); m_eur["labels"].pop(0)
-            df = pd.DataFrame(m_eur["prices"], columns=["close"])
+            last_c = m_eur["candlestick_data"][-1]["c"]
+            p_eur = last_c + (0.0005 if time.time() % 2 == 0 else -0.0004)
+            
+            new_candle = {
+                "x": time.strftime("%H:%M"),
+                "o": last_c,
+                "h": max(last_c, p_eur) + 0.0008,
+                "l": min(last_c, p_eur) - 0.0008,
+                "c": p_eur
+            }
+            m_eur["candlestick_data"].append(new_candle)
+            if len(m_eur["candlestick_data"]) > 20: m_eur["candlestick_data"].pop(0)
+            
+            closes = [item["c"] for item in m_eur["candlestick_data"]]
+            df = pd.DataFrame(closes, columns=["close"])
             m_eur["sma"] = f"{df['close'].rolling(window=5).mean().iloc[-1]:.4f}"
             delta = df["close"].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=5).mean()
@@ -101,8 +169,12 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finbot Pro - Multi Asset Terminal</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Finbot Pro - Candlestick Terminal</title>
+    <!-- Memuat Chart.js dan plugin finansial khusus candlestick -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
         body { background-color: #060913; color: #f1f5f9; padding: 10px; display: flex; justify-content: center; min-height: 100vh; }
@@ -110,7 +182,6 @@ HTML_TEMPLATE = """
         .header { background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9)); backdrop-filter: blur(10px); padding: 14px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.2); margin-bottom: 10px; text-align: center; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
         h1 { font-size: 15px; font-weight: 800; color: #38bdf8; margin-bottom: 6px; }
         
-        /* Asset Selector Form */
         .selector-form { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }
         .asset-select { background: #1e293b; color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 8px 12px; border-radius: 10px; font-weight: bold; font-size: 12px; outline: none; cursor: pointer; flex: 1; }
         
@@ -140,10 +211,9 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚡ MULTI-ASSET TERMINAL PRO</h1>
+            <h1>⚡ CANDLESTICK TERMINAL PRO</h1>
         </div>
 
-        <!-- Form Pemilihan Aset -->
         <form method="GET" action="/" class="selector-form">
             <select name="asset" class="asset-select" onchange="this.form.submit()">
                 <option value="XAUUSD" {% if current_asset == 'XAUUSD' %}selected{% endif %}>🟡 XAUUSD (Gold Spot)</option>
@@ -172,7 +242,7 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="chart-container">
-            <canvas id="techChart" width="400" height="190"></canvas>
+            <canvas id="candlestickChart" width="400" height="200"></canvas>
         </div>
 
         <div class="card">
@@ -191,42 +261,52 @@ HTML_TEMPLATE = """
         </form>
 
         <div class="footer-info">
-            Sync Time: {{ last_updated }} | Multi-Engine Active
+            Sync Time: {{ last_updated }} | Candlestick Engine Active
         </div>
     </div>
 
     <script>
-        const ctx = document.getElementById('techChart').getContext('2d');
-        const techChart = new Chart(ctx, {
-            type: 'line',
+        const ctx = document.getElementById('candlestickChart').getContext('2d');
+        const rawData = {{ current_data.candlestick_data | tojson }};
+
+        // Memetakan data agar cocok dibaca oleh plugin Chart.js Financial Candlestick
+        const chartData = rawData.map(item => ({
+            x: item.x,
+            o: item.o,
+            h: item.h,
+            l: item.l,
+            c: item.c
+        }));
+
+        const candlestickChart = new Chart(ctx, {
+            type: 'candlestick',
             data: {
-                labels: {{ current_data.labels | tojson }},
                 datasets: [{
-                    label: 'Price',
-                    data: {{ current_data.prices | tojson }},
-                    borderColor: '#38bdf8',
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const {ctx, chartArea} = chart;
-                        if (!chartArea) return null;
-                        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                        gradient.addColorStop(0, 'rgba(56, 189, 248, 0.35)');
-                        gradient.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
-                        return gradient;
-                    },
-                    borderWidth: 2.5,
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 2,
-                    pointBackgroundColor: '#38bdf8'
+                    label: 'Price Action',
+                    data: chartData,
+                    color: {
+                        up: '#22c55e',   // Hijau jika Close > Open
+                        down: '#ef4444', // Merah jika Close < Open
+                        unchanged: '#94a3b8'
+                    }
                 }]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
+                plugins: { 
+                    legend: { display: false } 
+                },
                 scales: {
-                    x: { ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } }, grid: { color: 'rgba(255, 255, 255, 0.03)' } },
-                    y: { beginAtZero: false, position: 'right', ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                    x: { 
+                        type: 'category',
+                        ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } }, 
+                        grid: { color: 'rgba(255, 255, 255, 0.03)' } 
+                    },
+                    y: { 
+                        position: 'right',
+                        ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } }, 
+                        grid: { color: 'rgba(255, 255, 255, 0.03)' } 
+                    }
                 }
             }
         });
@@ -264,7 +344,7 @@ def execute():
 
     last_action_log = f"Logged: {action} {asset} at {current_price} ({timestamp})"
     
-    msg = f"📈 *FINBOT SIGNAL ALERT*\n\nAsset: *{asset}*\nAction: *{action}*\nPrice: `{current_price}`\nRSI: `{current_rsi}`\nSMA: `{current_sma}`\nStatus: `{current_signal}`\nTime: `{timestamp}`"
+    msg = f"📈 *FINBOT CANDLESTICK ALERT*\n\nAsset: *{asset}*\nAction: *{action}*\nPrice: `{current_price}`\nRSI: `{current_rsi}`\nSMA: `{current_sma}`\nStatus: `{current_signal}`\nTime: `{timestamp}`"
     send_telegram_notification(msg)
     
     return redirect(url_for('index', asset=asset))
