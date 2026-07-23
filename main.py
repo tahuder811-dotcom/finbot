@@ -1,7 +1,10 @@
+import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
 
 TOKEN = "8914087726:AAGeuhs_0btpV97QnmgIDDGhEwHkzGtbvkM"
+
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -27,13 +30,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         text_resp = "❌ Order SELL XAUUSD Berhasil Diproses!"
         
-    await query.edit_message_text(text=f"🚨 **PANEL KENDALI TRADING** 🚨\n\nStatus Terkini: {text_resp}", parse_mode="Markdown")
+    await query.edit_message_text(text=f"🚨 **PANEL KENDALI TRADING** 🚨\n\nStatus Terkini:\n{text_resp}", parse_mode="Markdown")
+
+def main():
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    
+    print("Bot Telegram berjalan...")
+    application.run_polling()
 
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    
-    print("Bot sedang berjalan...")
-    app.run_polling()
-
+    main()
