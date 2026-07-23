@@ -9,136 +9,106 @@ app = Flask(__name__)
 TOKEN = "8914087726:AAGeuhs_0btpV97QnmgIDDGhEwHkzGtbvkM"
 TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}/"
 
-market_data = {
-    "XAU": {"price": "$2,350.20", "change": "+0.40%"},
-    "BTC": {"price": "Loading...", "change": "0.00%"},
-    "ETH": {"price": "Loading...", "change": "0.00%"},
-    "last_signal": "Belum ada aksi",
+# Data state sementara
+app_state = {
+    "last_action": "Belum ada aksi",
     "updated_at": "-"
 }
 
-def fetch_market_prices():
-    while True:
-        try:
-            crypto_res = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true", timeout=10)
-            if crypto_res.status_code == 200:
-                c_data = crypto_res.json()
-                market_data["BTC"]["price"] = f"${c_data.get('bitcoin', {}).get('usd', 0):,.2f}"
-                market_data["BTC"]["change"] = f"{c_data.get('bitcoin', {}).get('usd_24h_change', 0):+.2f}%"
-                
-                market_data["ETH"]["price"] = f"${c_data.get('ethereum', {}).get('usd', 0):,.2f}"
-                market_data["ETH"]["change"] = f"{c_data.get('ethereum', {}).get('usd_24h_change', 0):+.2f}%"
+def send_telegram_notification(message):
+    """Fungsi agar Web bisa mengirim pesan otomatis ke Telegram"""
+    try:
+        # Kirim broadcast ke chat/channel yang aktif (bisa disesuaikan dengan ID Anda)
+        # Untuk tes awal, kita ambil update terakhir untuk mendapatkan chat_id aktif
+        res = requests.get(TELEGRAM_API + "getUpdates", timeout=10)
+        data = res.json()
+        if data.get("ok") and data.get("result"):
+            chat_id = data["result"][-1]["message"]["chat"]["id"]
+            requests.post(TELEGRAM_API + "sendMessage", json={
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": "Markdown"
+            })
+    except Exception as e:
+        print(f"Gagal kirim telegram: {e}")
 
-            gold_res = requests.get("https://data-asg.goldprice.org/dbXRates/USD", timeout=10)
-            if gold_res.status_code == 200:
-                g_data = gold_res.json()
-                items = g_data.get("items", [])
-                if items:
-                    xau_price = items[0].get("xauPrice")
-                    if xau_price:
-                        market_data["XAU"]["price"] = f"${float(xau_price):,.2f}"
-                        market_data["XAU"]["change"] = "+0.45%"
-            else:
-                market_data["XAU"]["price"] = "$2,350.20"
-                market_data["XAU"]["change"] = "+0.40%"
-
-            market_data["updated_at"] = time.strftime("%H:%M:%S - %d %b %Y")
-        except Exception as e:
-            print(f"Error fetching market prices: {e}")
-            market_data["XAU"]["price"] = "$2,350.20"
-            market_data["XAU"]["change"] = "+0.40%"
-        
-        time.sleep(30)
-
+# HTML & CSS Dashboard dengan TradingView Widget & Desain Cakep
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finbot - Live Forex, Gold & Crypto Monitor</title>
-    <meta http-equiv="refresh" content="30">
+    <title>Finbot Pro - Trading Dashboard & Analyzer</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #0b0f19; color: #f8fafc; padding: 15px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .container { background-color: #1e293b; padding: 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 480px; border: 1px solid #334155; }
-        h1 { font-size: 20px; margin-bottom: 5px; color: #38bdf8; text-align: center; }
-        .subtitle { font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 20px; }
+        body { background-color: #0b0f19; color: #f8fafc; padding: 12px; display: flex; justify-content: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 480px; }
+        .header { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; margin-bottom: 15px; text-align: center; }
+        h1 { font-size: 20px; color: #38bdf8; margin-bottom: 4px; letter-spacing: 0.5px; }
+        .subtitle { font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
         
-        .market-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
-        .market-card { background-color: #0f172a; padding: 14px; border-radius: 10px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        .asset-name { font-weight: bold; font-size: 15px; color: #f1f5f9; }
-        .asset-sub { font-size: 11px; color: #64748b; }
-        .asset-price { font-size: 16px; font-weight: bold; text-align: right; color: #38bdf8; }
-        .asset-change { font-size: 12px; text-align: right; }
-        .positive { color: #22c55e; }
-        .negative { color: #ef4444; }
-
-        .card { background-color: #0f172a; padding: 14px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #334155; }
-        .card-title { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
-        .card-value { font-size: 14px; font-weight: bold; color: #fbbf24; }
+        .card { background-color: #1e293b; padding: 16px; border-radius: 14px; margin-bottom: 15px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .card-title { font-size: 12px; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
         
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; text-align: center; text-decoration: none; display: block; }
-        .btn-buy { background-color: #22c55e; color: white; }
-        .btn-sell { background-color: #ef4444; color: white; }
-        .footer-info { margin-top: 15px; font-size: 11px; text-align: center; color: #64748b; }
+        /* TradingView Widget Container */
+        .tradingview-widget-container { height: 350px; width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 15px; border: 1px solid #334155; }
+        
+        .status-val { font-size: 14px; font-weight: bold; color: #fbbf24; background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid #334155; }
+        
+        .btn-group { display: flex; gap: 12px; margin-top: 15px; }
+        .btn { flex: 1; padding: 14px; border: none; border-radius: 10px; font-weight: bold; font-size: 15px; cursor: pointer; text-align: center; text-decoration: none; transition: transform 0.1s, opacity 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .btn:active { transform: scale(0.97); }
+        .btn-buy { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .btn-sell { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+        
+        .footer-info { margin-top: 10px; font-size: 11px; text-align: center; color: #64748b; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📊 FINBOT MARKET MONITOR</h1>
-        <div class="subtitle">Live XAUUSD, Bitcoin & Ethereum Tracker</div>
+        <div class="header">
+            <h1>📊 FINBOT PRO ANALYZER</h1>
+            <div class="subtitle">Live Forex, Gold & Crypto Command Center</div>
+        </div>
         
-        <div class="market-grid">
-            <div class="market-card">
-                <div>
-                    <div class="asset-name">🥇 Gold (XAUUSD)</div>
-                    <div class="asset-sub">Spot Market</div>
-                </div>
-                <div>
-                    <div class="asset-price">{{ data.XAU.price }}</div>
-                    <div class="asset-change positive">{{ data.XAU.change }}</div>
-                </div>
-            </div>
-
-            <div class="market-card">
-                <div>
-                    <div class="asset-name">🪙 Bitcoin (BTC)</div>
-                    <div class="asset-sub">Crypto / USD</div>
-                </div>
-                <div>
-                    <div class="asset-price">{{ data.BTC.price }}</div>
-                    <div class="asset-change positive">{{ data.BTC.change }}</div>
-                </div>
-            </div>
-
-            <div class="market-card">
-                <div>
-                    <div class="asset-name">Ξ Ethereum (ETH)</div>
-                    <div class="asset-sub">Crypto / USD</div>
-                </div>
-                <div>
-                    <div class="asset-price">{{ data.ETH.price }}</div>
-                    <div class="asset-change positive">{{ data.ETH.change }}</div>
-                </div>
-            </div>
+        <!-- TradingView Advanced Real-time Chart Widget -->
+        <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+            {
+              "width": "100%",
+              "height": "100%",
+              "symbol": "OANDA:XAUUSD",
+              "interval": "15",
+              "timezone": "Asia/Jakarta",
+              "theme": "dark",
+              "style": "1",
+              "locale": "id",
+              "enable_publishing": false,
+              "hide_top_toolbar": false,
+              "save_image": false,
+              "calendar": false,
+              "studies": ["RASI@tv-basicstudies", "MASimple@tv-basicstudies"],
+              "support_host": "https://www.tradingview.com"
+            }
+            </script>
         </div>
 
         <div class="card">
-            <div class="card-title">Jurnal / Aksi Terakhir Dicatat</div>
-            <div class="card-value">{{ data.last_signal }}</div>
+            <div class="card-title"><span>Jurnal Aksi Terakhir</span> 🟢 Terhubung Telegram</div>
+            <div class="status-val">{{ state.last_action }}</div>
         </div>
 
-        <form method="POST" action="/log-action">
+        <form method="POST" action="/execute">
             <div class="btn-group">
-                <button type="submit" name="action" value="BUY" class="btn btn-buy">🟢 CATAT BUY</button>
-                <button type="submit" name="action" value="SELL" class="btn btn-sell">🔴 CATAT SELL</button>
+                <button type="submit" name="action" value="BUY XAUUSD" class="btn btn-buy">🟢 EKSEKUSI BUY</button>
+                <button type="submit" name="action" value="SELL XAUUSD" class="btn btn-sell">🔴 EKSEKUSI SELL</button>
             </div>
         </form>
 
         <div class="footer-info">
-            Terakhir diperbarui: {{ data.updated_at }} (Auto-refresh tiap 30s)
+            Server Status: Online 24/7 di Render | Update: {{ state.updated_at }}
         </div>
     </div>
 </body>
@@ -147,15 +117,23 @@ HTML_TEMPLATE = """
 
 @app.route("/")
 def index():
-    return render_template_string(HTML_TEMPLATE, data=market_data)
+    return render_template_string(HTML_TEMPLATE, state=app_state)
 
-@app.route("/log-action", methods=["POST"])
-def log_action():
+@app.route("/execute", methods=["POST"])
+def execute():
     action = request.form.get("action")
-    market_data["last_signal"] = f"Berhasil mencatat sinyal: {action} pada {time.strftime('%H:%M:%S')}"
+    timestamp = time.strftime('%H:%M:%S - %d %b %Y')
+    
+    app_state["last_action"] = f"Berhasil mencatat: {action} ({timestamp})"
+    app_state["updated_at"] = timestamp
+    
+    # Kirim notifikasi otomatis langsung ke Telegram Anda
+    msg = f"🚨 *PANEL KENDALI WEB*\n\nAksi Berhasil Dicatat:\n📌 *{action}*\n⏰ Waktu: `{timestamp}`"
+    send_telegram_notification(msg)
+    
     return redirect(url_for('index'))
 
-def telegram_polling():
+def telegram_listener():
     offset = 0
     while True:
         try:
@@ -171,18 +149,15 @@ def telegram_polling():
                         if text == "/start":
                             requests.post(TELEGRAM_API + "sendMessage", json={
                                 "chat_id": chat_id,
-                                "text": "🤖 **FINBOT MONITOR AKTIF**\n\nPantau harga Gold & Crypto langsung lewat web:\n🔗 https://finbot-whro.onrender.com",
+                                "text": "🚀 *FINBOT PRO AKTIF*\n\nWeb Analyzer & Chart Real-time sudah siap:\n🔗 https://finbot-whro.onrender.com",
                                 "parse_mode": "Markdown"
                             })
         except Exception:
             time.sleep(5)
 
 if __name__ == "__main__":
-    t_market = threading.Thread(target=fetch_market_prices, daemon=True)
-    t_market.start()
-    
-    t_bot = threading.Thread(target=telegram_polling, daemon=True)
-    t_bot.start()
+    t = threading.Thread(target=telegram_listener, daemon=True)
+    t.start()
     
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
