@@ -79,7 +79,7 @@ def index():
                 <input type="number" id="capital" class="input-field" placeholder="Modal ($)" value="1000">
                 <input type="number" id="riskPct" class="input-field" placeholder="Risiko (%)" value="1">
             </div>
-            <button onclick="calculateRisk()" class="btn btn-calc">hitung ukuran risiko</button>
+            <button onclick="calculateRisk()" class="btn btn-calc">HITUNG UKURAN RISIKO</button>
             <div id="calcResult" class="calc-result"></div>
         </div>
 
@@ -159,7 +159,6 @@ def api_journal():
   notes = req.get("notes")
   time_str = datetime.now().strftime("%H:%M:%S - %d %b")
 
-  # Fitur Ambil Harga Real-time otomatis dari Binance API
   current_price = "Market Price"
   try:
     if "BTC" in symbol:
@@ -212,7 +211,8 @@ def send_welcome(message):
       "Perintah yang tersedia:\n"
       "👉 `/price` - Cek harga emas terkini\n"
       "👉 `/alert [angka]` - Pasang alarm batas harga\n"
-      "👉 `/recap` - Lihat rekap jumlah transaksi hari ini",
+      "👉 `/recap` - Lihat rekap jumlah transaksi hari ini\n"
+      "👉 `/meme` - Cek tren token/meme coin terbaru",
       parse_mode="Markdown",
   )
 
@@ -263,7 +263,28 @@ def send_recap(message):
   bot.reply_to(message, recap_msg, parse_mode="Markdown")
 
 
-# Background thread untuk mengecek Price Alert secara otomatis
+@bot.message_handler(commands=["meme"])
+def check_meme(message):
+  try:
+    url = "https://api.dexscreener.com/latest/dex/search?q=SOL"
+    res = requests.get(url, timeout=5).json()
+    pairs = res.get("pairs", [])[:3]
+
+    msg = "🚀 **TRENDING MEME / TOKEN TERBARU**\n\n"
+    for p in pairs:
+      name = p.get("baseToken", {}).get("name", "N/A")
+      symbol = p.get("baseToken", {}).get("symbol", "N/A")
+      price = p.get("priceUsd", "0")
+      dex = p.get("dexId", "DEX")
+      msg += (
+          f"• **{name} ({symbol})**\n  DEX: `{dex}` | Harga: `${price}`\n\n"
+      )
+
+    bot.reply_to(message, msg, parse_mode="Markdown")
+  except Exception as e:
+    bot.reply_to(message, "Gagal mengambil data token.")
+
+
 def background_price_checker():
   while True:
     try:
@@ -279,12 +300,10 @@ def background_price_checker():
               f"🚨 **TARGET ALERT TERCAPAI!**\nHarga emas saat ini telah menyentuh: `${current_p:,.2f}`",
               parse_mode="Markdown",
           )
-          alert["active"] = (
-              False  # Matikan alert setelah berbunyi sekali agar tidak spam
-          )
+          alert["active"] = False
     except:
       pass
-    time.sleep(30)  # Cek harga setiap 30 detik
+    time.sleep(30)
 
 
 if __name__ == "__main__":
@@ -293,7 +312,6 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
 
-  # Jalankan background thread pengecek harga alert
   t = threading.Thread(target=background_price_checker)
   t.daemon = True
   t.start()
