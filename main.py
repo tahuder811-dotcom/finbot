@@ -7,7 +7,6 @@ TOKEN = str(os.getenv("TELEGRAM_BOT_TOKEN", ""))
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Fungsi ambil data harga emas/XAUUSD stabil
 def get_market_data():
     try:
         url = "https://api.gold-api.com/price/XAU"
@@ -23,10 +22,8 @@ def get_market_data():
     except Exception as e:
         print(f"Error Gold API: {e}")
     
-    # Fallback cadangan jika jaringan luar terbatas
     return 2350.50, 2360.00, 2340.00
 
-# Fungsi saringan koin meme berpotensi dari GMGN
 def get_gmgn_memes():
     try:
         url = "https://gmgn.ai/defi/quotation/v1/ranking/swaps/1h?device_id=1&client_id=web&app_version=2.0.0&system=web"
@@ -42,7 +39,6 @@ def get_gmgn_memes():
                 rankings = res_json.get("data", [])
             
             meme_list = []
-            # Saring 5 token teratas yang potensial berdasarkan volume & kenaikan 1h
             for item in rankings[:5]:
                 symbol = item.get("symbol", "UNKNOWN")
                 name = item.get("name", "Token")
@@ -50,9 +46,8 @@ def get_gmgn_memes():
                 if change:
                     change = round(float(change), 2)
                 
-                # Filter koin meme yang menunjukkan potensi kenaikan positif
                 if change > 0:
-                    meme_list.append(f"🟢 *{name* ({symbol}) - 1h: `+{change}%`")
+                    meme_list.append(f"🟢 *{name}* ({symbol}) - 1h: `+{change}%`")
                 else:
                     meme_list.append(f"🔴 *{name}* ({symbol}) - 1h: `{change}%`")
             
