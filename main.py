@@ -26,41 +26,35 @@ def get_market_data():
             data = response.json()
             current_price = float(data.get("price", 0))
             if current_price > 0:
-                resistance = round(current_price * 1.0025, 2)
-                support = round(current_price * 0.9975, 2)
+                # Parameter ketat khusus Timeframe 5 Menit (M5) Scalping
+                upper_band = round(current_price * 1.0015, 2)
+                lower_band = round(current_price * 0.9985, 2)
                 
-                # Kalkulasi Risiko Skenario Buy & Sell
-                sl_buy = round(current_price * 0.9985, 2)
-                tp_buy = round(current_price * 1.0035, 2)
+                sl_buy = round(current_price * 0.9980, 2)
+                tp_buy = round(current_price * 1.0025, 2)
                 
-                sl_sell = round(current_price * 1.0015, 2)
-                tp_sell = round(current_price * 0.9965, 2)
+                sl_sell = round(current_price * 1.0020, 2)
+                tp_sell = round(current_price * 0.9975, 2)
                 
-                # Logika Berjenjang (Hierarki Konfluensi Anti-Bentrok)
-                confluence_status = "⏳ *HIERARKI STATUS:* Menunggu harga menyentuh zona konfluensi S&D & RSI."
+                trend_status = "⏳ *M5 ENGINE:* Memantau momentum mikro & tren 5 menit."
                 
-                # Prioritas 1: Sinyal BUY (Terjadi jika harga di bawah/mendekati Support + S&D Demand + Konfirmasi Oversold)
-                if current_price <= support * 1.0005:
-                    confluence_status = (
-                        f"🟢 *HIERARKI BUY SIGNAL (VALID)*\n"
-                        f"- 📍 **Layer 1 (S&D):** Area Demand / Support Terpenuhi\n"
-                        f"- 📊 **Layer 2 (Momentum):** Indikator RSI Oversold (Pantulan)\n"
-                        f"- ⚡ **Action:** Open BUY Cepat\n"
-                        f"- 🛑 **SL Rapat:** `${sl_buy:,.2f}`\n"
-                        f"- 🎯 **TP Scalp:** `${tp_buy:,.2f}`"
+                # Logika Trend Following Khusus M5
+                if current_price >= upper_band * 0.9995:
+                    trend_status = (
+                        f"📈 *TF 5M TREND: BULLISH (BUY SETUP)*\n"
+                        f"- 📍 **Kondisi M5:** Harga menembus resistensi mikro\n"
+                        f"- ⚡ **Action:** Ikut Tren BUY (Scalp M5)\n"
+                        f"- 🛑 **SL:** `${sl_buy:,.2f}` | 🎯 **TP:** `${tp_buy:,.2f}`"
                     )
-                # Prioritas 2: Sinyal SELL (Terjadi jika harga di atas/mendekati Resistance + S&D Supply + Konfirmasi Overbought)
-                elif current_price >= resistance * 0.9995:
-                    confluence_status = (
-                        f"🔴 *HIERARKI SELL SIGNAL (VALID)*\n"
-                        f"- 📍 **Layer 1 (S&D):** Area Supply / Resistance Terpenuhi\n"
-                        f"- 📊 **Layer 2 (Momentum):** Indikator RSI Overbought (Pembalikan)\n"
-                        f"- ⚡ **Action:** Open SELL Cepat\n"
-                        f"- 🛑 **SL Rapat:** `${sl_sell:,.2f}`\n"
-                        f"- 🎯 **TP Scalp:** `${tp_sell:,.2f}`"
+                elif current_price <= lower_band * 1.0005:
+                    trend_status = (
+                        f"📉 *TF 5M TREND: BEARISH (SELL SETUP)*\n"
+                        f"- 📍 **Kondisi M5:** Harga menembus support mikro\n"
+                        f"- ⚡ **Action:** Ikut Tren SELL (Scalp M5)\n"
+                        f"- 🛑 **SL:** `${sl_sell:,.2f}` | 🎯 **TP:** `${tp_sell:,.2f}`"
                     )
                 
-                return round(current_price, 2), resistance, support, confluence_status
+                return round(current_price, 2), upper_band, lower_band, trend_status
     except Exception as e:
         print(f"Error Gold API: {e}")
     
@@ -86,7 +80,7 @@ def get_gmgn_memes_with_charts():
                 name = base_token.get("name", "Token")
                 symbol = base_token.get("symbol", "UNKNOWN")
                 pair_address = p.get("pairAddress", "")
-                token_address = p.get("address", "")
+                token_address = base_token.get("address", "")
                 
                 if symbol == "SOL" or symbol in seen:
                     continue
@@ -131,44 +125,44 @@ def background_price_monitor():
     while True:
         try:
             if USER_CHAT_ID:
-                p, r, s, signal = get_market_data()
+                p, upper, lower, signal = get_market_data()
                 
-                # Pelacakan target TP & SL otomatis di latar belakang
+                # Pemantauan target TP / SL otomatis (Skala M5)
                 if active_position == "BUY":
                     if p >= target_tp:
-                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (BUY)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot: `${p:,.2f}`\n✅ *Status: Selesai Profit!*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🎯 *TAKE PROFIT M5 TERCAPAI! (BUY)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot: `${p:,.2f}`\n✅ *Status: Scalp M5 Sukses!*", parse_mode="Markdown")
                         active_position = None
                     elif p <= target_sl:
-                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (BUY)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Disiplin Cut Loss.*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS M5 TERSENTUH! (BUY)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Disiplin Cut Loss M5.*", parse_mode="Markdown")
                         active_position = None
                         
                 elif active_position == "SELL":
                     if p <= target_tp:
-                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (SELL)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot: `${p:,.2f}`\n✅ *Status: Selesai Profit!*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🎯 *TAKE PROFIT M5 TERCAPAI! (SELL)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot: `${p:,.2f}`\n✅ *Status: Scalp M5 Sukses!*", parse_mode="Markdown")
                         active_position = None
                     elif p >= target_sl:
-                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Disiplin Cut Loss.*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS M5 TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Disiplin Cut Loss M5.*", parse_mode="Markdown")
                         active_position = None
 
-                # Kirim alert jika ada sinyal hierarki valid baru
-                if "SIGNAL" in signal and signal != last_alert_status and active_position is None:
+                # Kirim alert jika ada setup M5 baru
+                if "SETUP" in signal and signal != last_alert_status and active_position is None:
                     last_alert_status = signal
-                    if "BUY" in signal:
+                    if "BULLISH" in signal:
                         active_position = "BUY"
                         entry_price_tracked = p
-                        target_tp = round(p * 1.0035, 2)
-                        target_sl = round(p * 0.9985, 2)
-                    elif "SELL" in signal:
+                        target_tp = round(p * 1.0025, 2)
+                        target_sl = round(p * 0.9980, 2)
+                    elif "BEARISH" in signal:
                         active_position = "SELL"
                         entry_price_tracked = p
-                        target_tp = round(p * 0.9965, 2)
-                        target_sl = round(p * 1.0015, 2)
+                        target_tp = round(p * 0.9975, 2)
+                        target_sl = round(p * 1.0020, 2)
                         
                     alert_text = (
-                        f"⚡ *HIERARCHICAL CONFLUENCE ALERT!* ⚡\n\n"
+                        f"⚡ *M5 SCALPING ALERT!* ⚡\n\n"
                         f"📈 *XAUUSD Live Price:* `${p:,.2f}`\n\n"
                         f"{signal}\n\n"
-                        f"🤖 *Bot mengunci target TP & SL secara otomatis.*"
+                        f"🤖 *Bot mengunci target TP & SL M5 otomatis.*"
                     )
                     bot.send_message(USER_CHAT_ID, alert_text, parse_mode="Markdown", disable_web_page_preview=False)
                 elif "Menunggu" in signal:
@@ -182,35 +176,33 @@ def send_welcome(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
     text = (
-        "🤖 *Finbot Hierarchical Engine Active*\n\n"
+        "🤖 *Finbot M5 Scalping Engine Active*\n\n"
         "Perintah yang tersedia:\n"
-        "👉 `/scalp` atau `/tf15` - Cek Setup Berjenjang (Buy & Sell)\n"
-        "👉 `/news` - Panduan Sentimen Makro US\n"
+        "👉 `/scalp` atau `/tf5` - Cek Setup Tren Timeframe 5 Menit\n"
+        "👉 `/news` - Panduan Sentimen Makro XAUUSD\n"
         "👉 `/meme` - Saringan koin meme Solana"
     )
     bot.reply_to(message, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=['scalp', 'tf15', 'price'])
+@bot.message_handler(commands=['scalp', 'tf5', 'tf15', 'price'])
 def send_scalp(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
-    p, r, s, signal = get_market_data()
+    p, upper, lower, signal = get_market_data()
     
-    sl_buy = round(p * 0.9985, 2)
-    tp_buy = round(p * 1.0035, 2)
-    sl_sell = round(p * 1.0015, 2)
-    tp_sell = round(p * 0.9965, 2)
+    sl_buy = round(p * 0.9980, 2)
+    tp_buy = round(p * 1.0025, 2)
+    sl_sell = round(p * 1.0020, 2)
+    tp_sell = round(p * 0.9975, 2)
     
     text = (
-        f"🧠 *XAUUSD Hierarchical Setup (Buy & Sell)*\n"
-        f"- Harga Spot: `${p:,.2f}`\n"
-        f"- Support/Demand: `${s:,.2f}`\n"
-        f"- Resistance/Supply: `${r:,.2f}`\n\n"
-        f"📌 *Kalkulasi Risiko (Risk Management 1:2.5):*\n"
-        f"🟢 **Setup BUY:** SL `${sl_buy:,.2f}` | TP `${tp_buy:,.2f}`\n"
-        f"🔴 **Setup SELL:** SL `${sl_sell:,.2f}` | TP `${tp_sell:,.2f}`\n\n"
+        f"📊 *XAUUSD Timeframe 5 Menit (M5) Setup*\n"
+        f"- Harga Spot Saat Ini: `${p:,.2f}`\n\n"
+        f"📌 *Parameter Scalping M5:*\n"
+        f"🟢 **Setup BUY (M5 Bullish):** SL `${sl_buy:,.2f}` | TP `${tp_buy:,.2f}`\n"
+        f"🔴 **Setup SELL (M5 Bearish):** SL `${sl_sell:,.2f}` | TP `${tp_sell:,.2f}`\n\n"
         f"{signal}\n\n"
-        f"📊 [Buka Chart TradingView XAUUSD](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
+        f"📊 [Buka Chart TradingView XAUUSD (M5)](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
     )
     bot.reply_to(message, text, parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -219,10 +211,13 @@ def send_us_news(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
     news_text = (
-        "🇺🇸 *US Macro & Hierarchical Guide*\n\n"
-        "⚠️ *Aturan Sistem Berjenjang:*\n"
-        "1. Bot memproses layer S&D dan indikator secara terstruktur tanpa bentrok.\n"
-        "2. Fokus pada disiplin eksekusi dan jaga batas maksimal 2x loss per minggu."
+        "🇺🇸 *XAUUSD Live Macro & M5 Scalping Guide*\n\n"
+        "🔥 *Faktor Penggerak Utama Pasar Saat Ini:*\n"
+        "1. **Suku Bunga & The Fed:** Perhatikan ekspektasi moneter yang menggerakkan volatilitas emas harian.\n"
+        "2. **Geopolitik Global:** Pemicu lonjakan harga tiba-tiba pada timeframe pendek.\n\n"
+        "⚠️ *Aturan Main M5 Scalper:*\n"
+        "- Fokus eksekusi cepat di TF 5 menit sesuai arah tren mikro.\n"
+        "- Disiplin ketat batas maksimal risiko 2x loss per minggu."
     )
     bot.reply_to(message, news_text, parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -243,7 +238,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Hierarchical Engine is running!", 200
+    return "Finbot M5 Scalping Engine is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
