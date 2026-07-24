@@ -45,7 +45,8 @@ def get_gmgn_memes():
             pairs = data.get("pairs", [])
             
             meme_list = []
-            sol_pairs = [p for p in pairs if p.get("chainId"] == "solana"]
+            # Perbaikan kurung siku yang sebelumnya error
+            sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
             sol_pairs = sorted(sol_pairs, key=lambda x: x.get("priceChange", {}).get("h1", 0) or 0, reverse=True)
             
             for item in sol_pairs[:5]:
@@ -58,7 +59,6 @@ def get_gmgn_memes():
                     h1_change = 0
                 h1_change = round(float(h1_change), 2)
                 
-                # Filter koin berpotensi sniper (momentum 1h positif kuat)
                 status_sniper = "🎯 Potensi Masuk" if h1_change > 10 else "👀 Pantau"
                 
                 if h1_change > 0:
