@@ -23,27 +23,31 @@ def get_market_data():
                 resistance = round(current_price * 1.0025, 2)
                 support = round(current_price * 0.9975, 2)
                 
-                # Logika Scalping Ketat (Risk-Reward 1:2.5)
-                # SL sangat rapat (0.15%), TP cepat (0.35%) untuk scalper 1-5 menit
-                sl_scalp = round(current_price * 0.9985, 2)
-                tp_scalp = round(current_price * 1.0035, 2)
+                # Setup Buy (Support)
+                sl_buy = round(current_price * 0.9985, 2)
+                tp_buy = round(current_price * 1.0035, 2)
                 
-                sniper_signal = "⏳ *SCALPING STATUS:* Menunggu momentum volume pecah di area S&D."
+                # Setup Sell (Resistance)
+                sl_sell = round(current_price * 1.0015, 2)
+                tp_sell = round(current_price * 0.9965, 2)
+                
+                sniper_signal = "⏳ *SCALPING STATUS:* Menunggu momentum di area S&D."
+                
                 if current_price <= support * 1.0005:
                     sniper_signal = (
                         f"🟢 *SCALPER BUY SIGNAL (TF 1M-5M)*\n"
-                        f"- 📍 Area Pantau: Dekat Support\n"
+                        f"- 📍 Area: Dekat Support\n"
                         f"- ⚡ **Action:** Open BUY Cepat\n"
-                        f"- 🛑 **SL Rapat:** `${sl_scalp:,.2f}` (Cut Loss Cepat jika jebol)\n"
-                        f"- 🎯 **TP Scalp:** `${tp_scalp:,.2f}` (Ambil Cepat 1:2.5)"
+                        f"- 🛑 **SL Rapat:** `${sl_buy:,.2f}`\n"
+                        f"- 🎯 **TP Scalp:** `${tp_buy:,.2f}`"
                     )
                 elif current_price >= resistance * 0.9995:
                     sniper_signal = (
                         f"🔴 *SCALPER SELL SIGNAL (TF 1M-5M)*\n"
-                        f"- 📍 Area Pantau: Dekat Resistance\n"
+                        f"- 📍 Area: Dekat Resistance\n"
                         f"- ⚡ **Action:** Open SELL Cepat\n"
-                        f"- 🛑 **SL Rapat:** `${round(current_price * 1.0015, 2):,.2f}`\n"
-                        f"- 🎯 **TP Scalp:** `${round(current_price * 0.9965, 2):,.2f}`"
+                        f"- 🛑 **SL Rapat:** `${sl_sell:,.2f}`\n"
+                        f"- 🎯 **TP Scalp:** `${tp_sell:,.2f}`"
                     )
                 
                 return round(current_price, 2), resistance, support, sniper_signal
@@ -108,7 +112,7 @@ def get_gmgn_memes_with_charts():
     except Exception as e:
         print(f"Error DexScreener Filter: {e}")
     
-    return "⏳ Belum ada koin meme yang memenuhi kriteria saat ini. Coba lagi sebentar."
+    return "⏳ Belum ada koin meme yang memenuhi kriteria saat ini."
 
 def background_price_monitor():
     global USER_CHAT_ID
@@ -123,7 +127,7 @@ def background_price_monitor():
                         f"⚡ *AUTOMATIC SCALPING ALERT!* ⚡\n\n"
                         f"📈 *XAUUSD Live Price:* `${p:,.2f}`\n\n"
                         f"{signal}\n\n"
-                        f"📊 [Buka Chart Scalping TradingView](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
+                        f"📊 [Buka Chart TradingView](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
                     )
                     bot.send_message(USER_CHAT_ID, alert_text, parse_mode="Markdown", disable_web_page_preview=False)
                 elif "Menunggu" in signal:
@@ -138,8 +142,8 @@ def send_welcome(message):
     USER_CHAT_ID = message.chat.id
     text = (
         "🤖 *Finbot Scalper Engine Active*\n\n"
-        "Perintah khusus Scalping:\n"
-        "👉 `/scalp` atau `/tf15` - Sinyal Scalping & Kalkulasi SL Rapat XAUUSD\n"
+        "Perintah yang tersedia:\n"
+        "👉 `/scalp` atau `/tf15` - Sinyal Buy & Sell Scalping XAUUSD\n"
         "👉 `/news` - Panduan Sentimen Makro US\n"
         "👉 `/meme` - Saringan koin meme Solana"
     )
@@ -151,14 +155,20 @@ def send_scalp(message):
     USER_CHAT_ID = message.chat.id
     p, r, s, signal = get_market_data()
     
+    sl_buy = round(p * 0.9985, 2)
+    tp_buy = round(p * 1.0035, 2)
+    sl_sell = round(p * 1.0015, 2)
+    tp_sell = round(p * 0.9965, 2)
+    
     text = (
-        f"⚡ *XAUUSD Scalping Setup (TF 1M - 5M)*\n"
-        f"- Harga Spot Saat Ini: `${p:,.2f}`\n"
-        f"- Zona Support Terdekat: `${s:,.2f}`\n"
-        f"- Zona Resistance Terdekat: `${r:,.2f}`\n\n"
+        f"⚡ *XAUUSD Scalping Setup (Buy & Sell)*\n"
+        f"- Harga Spot: `${p:,.2f}`\n"
+        f"- Support Terdekat: `${s:,.2f}`\n"
+        f"- Resistance Terdekat: `${r:,.2f}`\n\n"
+        f"📌 *Kalkulasi Cepat (Risk Management 1:2.5):*\n"
+        f"🟢 **Setup BUY:** SL `${sl_buy:,.2f}` | TP `${tp_buy:,.2f}`\n"
+        f"🔴 **Setup SELL:** SL `${sl_sell:,.2f}` | TP `${tp_sell:,.2f}`\n\n"
         f"{signal}\n\n"
-        f"💡 *Aturan Main Scalper Target Sedikit Loss:*\n"
-        f"Wajib disiplin cut loss jika harga menembus SL rapat di atas. Jangan pernah menahan posisi minus (*No Hope Trading*).\n\n"
         f"📊 [Buka Chart TradingView XAUUSD](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
     )
     bot.reply_to(message, text, parse_mode="Markdown", disable_web_page_preview=True)
@@ -169,10 +179,10 @@ def send_us_news(message):
     USER_CHAT_ID = message.chat.id
     news_text = (
         "🇺🇸 *US Macro & Fundamental Guide (XAUUSD)*\n\n"
-        "⚠️ *Aturan Utama Scalper Lawan Institusi:*\n"
-        "1. Jangan scalping saat rilis data berita merah (CPI, NFP, FOMC).\n"
-        "2. Fokus transaksi di sesi aktif (London & New York pukul 14.00 - 23.00 WIB).\n"
-        "3. Jaga emosi: Target 10 trade maksimal loss 2x artinya ketepatan analisis dan kedisiplinan SL adalah segalanya."
+        "⚠️ *Aturan Scalper Buy & Sell:*\n"
+        "1. Jangan ambil posisi Buy/Sell berlawanan arah saat data berita merah rilis.\n"
+        "2. Manfaatkan area Resistance untuk eksekusi **Sell** dan Support untuk **Buy**.\n"
+        "3. Jaga kedisiplinan SL rapat agar target maksimal 2x loss seminggu tercapai."
     )
     bot.reply_to(message, news_text, parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -193,7 +203,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Scalper Engine is running!", 200
+    return "Finbot Scalper Buy & Sell Engine is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
