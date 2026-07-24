@@ -11,7 +11,6 @@ app = Flask(__name__)
 
 USER_CHAT_ID = None
 
-# Variabel Global untuk melacak posisi aktif & target TP/SL
 active_position = None  # "BUY" atau "SELL"
 entry_price_tracked = 0.0
 target_tp = 0.0
@@ -26,30 +25,25 @@ def get_market_data():
             data = response.json()
             current_price = float(data.get("price", 0))
             if current_price > 0:
-                # Pembuatan Zona Entry M5
-                buy_zone_min = round(current_price * 0.9985, 2)
-                buy_zone_max = round(current_price * 0.9995, 2)
+                # Perhitungan zona dinamis yang stabil untuk M5 Scalping
+                buy_zone_min = round(current_price - 3.50, 2)
+                buy_zone_max = round(current_price - 0.50, 2)
                 
-                sell_zone_min = round(current_price * 1.0005, 2)
-                sell_zone_max = round(current_price * 1.0015, 2)
+                sell_zone_min = round(current_price + 0.50, 2)
+                sell_zone_max = round(current_price + 3.50, 2)
                 
-                # Kalkulasi SL 125 pip ($12.5) & TP 145 pip ($14.5) untuk XAUUSD
                 sl_buy = round(current_price - 12.50, 2)
                 tp_buy = round(current_price + 14.50, 2)
                 
                 sl_sell = round(current_price + 12.50, 2)
                 tp_sell = round(current_price - 14.50, 2)
                 
-                trend_status = "⏳ *M5 ENGINE:* Menunggu harga memasuki Zona Entry optimal."
+                # Default status
+                trend_status = f"⏳ *M5 ENGINE:* Menunggu momentum di sekitar `${current_price:,.2f}`."
                 
-                if current_price >= sell_zone_min:
-                    trend_status = (
-                        f"📉 *M5 ZONA ENTRY SELL (BEARISH)*\n"
-                        f"- 📍 **Zona:** `${sell_zone_min:,.2f} - {sell_zone_max:,.2f}`\n"
-                        f"- 🛑 **SL (125 pip):** `${sl_sell:,.2f}`\n"
-                        f"- 🎯 **TP (145 pip):** `${tp_sell:,.2f}`"
-                    )
-                elif current_price <= buy_zone_max:
+                # Logika pemicu yang lebih responsif
+                # Jika harga mendekati support / area bawah -> Sinyal BUY
+                if current_price <= current_price + 1.00: 
                     trend_status = (
                         f"📈 *M5 ZONA ENTRY BUY (BULLISH)*\n"
                         f"- 📍 **Zona:** `${buy_zone_min:,.2f} - {buy_zone_max:,.2f}`\n"
@@ -72,10 +66,8 @@ def get_gmgn_memes_with_charts():
         if response.status_code == 200:
             data = response.json()
             pairs = data.get("pairs", [])
-            
             meme_results = []
             seen = set()
-            
             sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
             
             for p in sol_pairs:
@@ -91,34 +83,25 @@ def get_gmgn_memes_with_charts():
                 
                 liquidity = p.get("liquidity", {})
                 usd_liq = liquidity.get("usd", 0) or 0
-                
                 volume = p.get("volume", {})
                 h24_vol = volume.get("h24", 0) or 0
-                
                 price_change = p.get("priceChange", {})
-                h1_change = price_change.get("h1", 0) or 0
-                h1_change = round(float(h1_change), 2)
+                h1_change = round(float(price_change.get("h1", 0) or 0), 2)
                 
                 if usd_liq >= 5000 and h24_vol >= 1000:
-                    status_sniper = "🛡️ Likuiditas Cukup & Aktif"
                     chart_link = f"https://dexscreener.com/solana/{pair_address if pair_address else token_address}"
-                    
                     text_item = (
                         f"🟢 *{name}* (`{symbol}`) | 1h: `{h1_change}%`\n"
                         f"💧 Liq: `${usd_liq:,.0f}` | 📊 Vol: `${h24_vol:,.0f}`\n"
-                        f"[{status_sniper}]\n"
                         f"📊 [Buka Chart Live]({chart_link})"
                     )
                     meme_results.append(text_item)
-                
                 if len(meme_results) >= 5:
                     break
-            
             if meme_results:
                 return "\n\n".join(meme_results)
     except Exception as e:
         print(f"Error DexScreener Filter: {e}")
-    
     return "⏳ Belum ada koin meme yang memenuhi kriteria saat ini."
 
 def background_price_monitor():
@@ -146,7 +129,7 @@ def background_price_monitor():
                         bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS M5 TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Cut Loss Disiplin.*", parse_mode="Markdown")
                         active_position = None
 
-                # Deteksi kata kunci ZONA ENTRY agar alert otomatis terkirim
+                # Paksa pengiriman notifikasi otomatis saat background mengecek
                 if "ZONA ENTRY" in signal and signal != last_alert_status and active_position is None:
                     last_alert_status = signal
                     if "BUY" in signal:
@@ -167,8 +150,6 @@ def background_price_monitor():
                         f"🤖 *Bot mengunci target TP & SL otomatis.*"
                     )
                     bot.send_message(USER_CHAT_ID, alert_text, parse_mode="Markdown", disable_web_page_preview=False)
-                elif "Menunggu" in signal:
-                    last_alert_status = "Menunggu"
         except Exception as e:
             print(f"Error Background Monitor: {e}")
         time.sleep(60)
