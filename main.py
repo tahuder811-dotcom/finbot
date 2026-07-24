@@ -69,4 +69,5 @@ def send_meme(message):
 
 if __name__ == "__main__":
     print("Finbot is polling 24/7...")
+    bot.remove_webhook()  # Membersihkan webhook lama yang bikin error 409 Conflict
     bot.infinity_polling()
