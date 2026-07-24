@@ -46,7 +46,8 @@ def get_gmgn_memes_with_charts():
             meme_results = []
             seen = set()
             
-            sol_tokens = [t for t in boosted_tokens if t.get("chainId"] == "solana"]
+            # Perbaikan kurung siku yang error sebelumnya
+            sol_tokens = [t for t in boosted_tokens if t.get("chainId") == "solana"]
             if not sol_tokens:
                 sol_tokens = boosted_tokens
                 
@@ -72,8 +73,6 @@ def get_gmgn_memes_with_charts():
                             
                             if h1_change > 0:
                                 status_sniper = "🔥 Strong Pump" if h1_change > 10 else "🎯 Potensi Bagus"
-                                
-                                # Link langsung ke Chart DexScreener & Quick Swap
                                 chart_link = f"https://dexscreener.com/solana/{pair_address if pair_address else token_address}"
                                 
                                 text_item = (
