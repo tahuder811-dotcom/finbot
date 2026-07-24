@@ -1,136 +1,93 @@
 import os
-import time
-import threading
+import telebot
+import yfinance as yf
 import requests
-from flask import Flask, request
 
-app = Flask(__name__)
+TOKEN = os.getenv("8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A")
+CHAT_ID = os.getenv("7657888575")
 
-# Konfigurasi Token Bot & Chat ID (Ambil dari Environment Variables Render)
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "7657888575")
+bot = telebot.TeleBot(TOKEN)
 
-# Variabel penyimpanan status rekap & transaksi sederhana
-bot_stats = {"total_trx": 0, "total_buy": 0, "total_sell": 0}
-
-
-def send_telegram_alert(message):
-  if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A":
-    return
-  url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-  payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
-  try:
-    requests.post(url, json=payload, timeout=10)
-  except Exception as e:
-    print(f"Gagal mengirim pesan Telegram: {e}")
-
-
-# --- BACKGROUND MONITOR: XAUUSD TIMEFRAME 15 MENIT (TF 15m) ---
-def monitor_xauusd_15m():
-  print("Background: Pemantau XAUUSD Timeframe 15m aktif.")
-  while True:
+# Fungsi ambil harga emas real-time
+def get_market_data():
     try:
-      # Logika simulasi data timeframe 15 menit
-      current_price = 4015.50
-      high_15m = 4025.00  # Resistance TF 15m
-      low_15m = 4005.00   # Support TF 15m
-      buffer = 2.0        # Toleransi ketat untuk scalping
-
-      if current_price <= (low_15m + buffer):
-        msg = (
-            f"⚡ *SINYAL SCALPING XAUUSD (TF 15M)* ⚡\n\nHarga: *${current_price}"
-            f"* menyentuh area Demand 15m (Support: *${low_15m}*).\nSegera cek"
-            " chart MT5 di HP untuk konfirmasi pola candlestick!"
-        )
-        send_telegram_alert(msg)
-
-      elif current_price >= (high_15m - buffer):
-        msg = (
-            f"⚡ *SINYAL SCALPING XAUUSD (TF 15M)* ⚡\n\nHarga: *${current_price}"
-            f"* menyentuh area Supply 15m (Resistance: *${high_15m}*).\nSegera"
-            " cek chart MT5 di HP untuk konfirmasi pembalikan!"
-        )
-        send_telegram_alert(msg)
-
+        gold = yf.Ticker("GC=F")
+        data = gold.history(period="1d", interval="15m")
+        if not data.empty:
+            current_price = float(data['Close'].iloc[-1])
+            resistance = float(data['High'].iloc[-5:].max())
+            support = float(data['Low'].iloc[-5:].min())
+            return round(current_price, 2), round(resistance, 2), round(support, 2)
     except Exception as e:
-      print(f"Error 15m Monitor: {e}")
+        print(f"Error fetching market data: {e}")
+    return 0.0, 0.0, 0.0
 
-    # Cek setiap 3 menit (180 detik) untuk timeframe 15m
-    time.sleep(180)
+# Fungsi ambil tren meme coin langsung dari GMGN API
+def get_gmgn_memes():
+    try:
+        # Endpoint publik trending token GMGN
+        url = "https://gmgn.ai/defi/quotation/v1/ranking/swaps/1h?device_id=1&client_id=web&app_version=2.0.0"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            res_data = response.json()
+            rankings = res_data.get("data", {}).get("rankings", [])
+            
+            meme_list = []
+            for item in rankings[:5]: # Ambil 5 token teratas
+                symbol = item.get("symbol", "UNKNOWN")
+                name = item.get("name", "Unknown Token")
+                price_change = item.get("price_change_percent1h", 0)
+                meme_list.append(f"🔥 *{name}* ({symbol}) - 1h Change: ` {price_change}%`")
+            
+            if meme_list:
+                return "\n".join(meme_list)
+    except Exception as e:
+        print(f"Error fetching GMGN data: {e}")
+    
+    return "Belum ada sinyal token baru dari GMGN saat ini."
 
+# Handler /start
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    help_text = (
+        "🤖 *Finbot Ultimate S&D Engine Active*\n\n"
+        "Perintah yang tersedia:\n"
+        "👉 `/price` - Cek harga emas terkini\n"
+        "👉 `/tf15` - Cek status S&D Timeframe 15M\n"
+        "👉 `/meme` - Cek tren meme coin dari GMGN"
+    )
+    bot.reply_to(message, help_text, parse_mode="Markdown")
 
-# --- WEBHOOK ENDPOINT TELEGRAM ---
-@app.route(f"/{TELEGRAM_BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
-  update = request.get_json()
-  if "message" in update:
-    chat_id = update["message"]["chat"]["id"]
-    text = update["message"].get("text", "").strip()
+# Handler /price dan /tf15
+@bot.message_handler(commands=['price', 'tf15'])
+def send_price(message):
+    price, res, sup = get_market_data()
+    response_text = (
+        f"📈 *Status S&D Timeframe 15M (XAUUSD)*\n"
+        f"- Harga Saat Ini: `${price:,.2f}`\n"
+        f"- Resistance 15m: `${res:,.2f}`\n"
+        f"- Support 15m: `${sup:,.2f}`\n"
+        f"- Status: Bot aktif memantau di background."
+    )
+    bot.reply_to(message, response_text, parse_mode="Markdown")
 
-    # Logika Perintah Bot
-    if text.lower() == "/start":
-      reply_text = (
-          "⚡ *Finbot Ultimate Aktif!*\n\nPerintah yang tersedia:\n👉 `/price` -"
-          " Cek harga emas terkini\n👉 `/alert [angka]` - Pasang alarm batas"
-          " harga\n👉 `/recap` - Lihat rekap jumlah transaksi\n👉 `/meme` - Cek"
-          " tren token/meme coin\n👉 `/tf15` - Cek status S&D Timeframe 15M"
-      )
-    elif text.lower() == "/price":
-      reply_text = (
-          "📊 *Harga XAUUSD Terkini*\n- Harga: $4,015.50\n- Status: Stabil dekat"
-          " area tengah TF 15M."
-      )
-    elif text.lower().startswith("/alert"):
-      parts = text.split()
-      if len(parts) > 1:
-        target_price = parts[1]
-        reply_text = (
-            f"✅ Alarm berhasil dipasang pada harga: *${target_price}*."
-            " Bot akan memantau."
-        )
-      else:
-        reply_text = (
-            "⚠️ Format salah. Gunakan contoh:\n`/alert 4020` (tanpa spasi"
-            " berlebih atau langsung ketik angkanya)."
-        )
-    elif text.lower() == "/recap":
-      reply_text = (
-          f"📊 *REKAP PERFORMA SESI INI*\n\n• Total Transaksi:"
-          f" {bot_stats['total_trx']}\n• Total BUY:"
-          f" {bot_stats['total_buy']}\n• Total SELL: {bot_stats['total_sell']}"
-      )
-    elif text.lower() == "/meme":
-      reply_text = (
-          "🚀 *Tren Meme Coin Terkini*\n- Belum ada sinyal token baru yang"
-          " mencolok hari ini."
-      )
-    elif text.lower() == "/tf15":
-      reply_text = (
-          "📈 *Status S&D Timeframe 15M (XAUUSD)*\n- Harga Saat Ini:"
-          " $4,015.50\n- Resistance 15m: $4,025.00\n- Support 15m:"
-          " $4,000.50\n- Status: Bot aktif memantau di background."
-      )
-    else:
-      reply_text = (
-          "Perintah tidak dikenali. Ketik /start untuk melihat daftar"
-          " perintah."
-      )
+# Handler /meme (Mengambil data dari GMGN)
+@bot.message_handler(commands=['meme'])
+def send_meme(message):
+    trending_text = get_gmgn_memes()
+    response_text = (
+        f"🚀 *Tren Meme Coin Terkini (GMGN)*\n\n"
+        f"{trending_text}"
+    )
+    bot.reply_to(message, response_text, parse_mode="Markdown")
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": reply_text, "parse_mode": "Markdown"})
-
-  return "OK", 200
-
-
-@app.route("/")
-def home():
-  return "Finbot Ultimate with TF 15M S&D Engine is Running 24/7!"
-
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    bot.reply_to(message, "Gunakan /start untuk melihat daftar perintah bot.")
 
 if __name__ == "__main__":
-  # Jalankan pemantau TF 15m di latar belakang menggunakan Thread
-  t = threading.Thread(target=monitor_xauusd_15m, daemon=True)
-  t.start()
-
-  port = int(os.environ.get("PORT", 5000))
-  app.run(host="0.0.0.0", port=port)
+    print("Finbot Ultimate with GMGN is Running 24/7!")
