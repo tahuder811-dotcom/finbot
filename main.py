@@ -25,38 +25,47 @@ def get_market_data():
     
     return 2350.50, 2360.00, 2340.00
 
-# Fungsi saringan koin meme berpotensi (Solana 1h)
+# Fungsi saringan koin meme potensial menggunakan DexScreener (Solana Trending)
 def get_gmgn_memes():
     try:
-        url = "https://gmgn.ai/defi/quotation/v1/rank/sol/swaps/1h?orderby=rise&direction=desc&limit=5"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Accept": "application/json"
-        }
-        response = requests.get(url, headers=headers, timeout=5)
+        # Mengambil data koin trending Solana terbaru yang aktif di pasaran
+        url = "https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112"
+        # Atau menggunakan endpoint pencarian koin meme populer:
+        url_trending = "https://api.dexscreener.com/token-profiles/latest/v1"
+        
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get("https://api.dexscreener.com/latest/dex/search?q=SOLANA", headers=headers, timeout=5)
+        
         if response.status_code == 200:
-            res_json = response.json()
-            rankings = res_json.get("data", {}).get("rank", [])
-            if not rankings:
-                rankings = res_json.get("data", [])
+            data = response.json()
+            pairs = data.get("pairs", [])
             
             meme_list = []
-            for item in rankings[:5]:
-                symbol = item.get("symbol", "UNKNOWN")
-                name = item.get("name", "Token")
-                change = item.get("price_change_percent1h", 0)
-                if change:
-                    change = round(float(change), 2)
+            # Saring pasangan koin jaringan Solana dengan volume dan kenaikan 1h terbaik
+            sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+            # Urutkan berdasarkan persentase perubahan harga 1 jam terakhir tertinggi
+            sol_pairs = sorted(sol_pairs, key=lambda x: x.get("priceChange", {}).get("h1", 0), reverse=True)
+            
+            for item in sol_pairs[:5]:
+                base_token = item.get("baseToken", {})
+                name = base_token.get("name", "Token")
+                symbol = base_token.get("symbol", "UNKNOWN")
                 
-                if change > 0:
-                    meme_list.append(f"🟢 *{name}* ({symbol}) - 1h: `+{change}%`")
+                price_change = item.get("priceChange", {})
+                h1_change = price_change.get("h1", 0)
+                if h1_change is None:
+                    h1_change = 0
+                h1_change = round(float(h1_change), 2)
+                
+                if h1_change > 0:
+                    meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%`")
                 else:
-                    meme_list.append(f"🔴 *{name}* ({symbol}) - 1h: `{change}%`")
+                    meme_list.append(f"🔴 *{name}* (`{symbol}`) - 1h: `{h1_change}%`")
             
             if meme_list:
                 return "\n".join(meme_list)
     except Exception as e:
-        print(f"Error GMGN Filter: {e}")
+        print(f"Error DexScreener Filter: {e}")
     
     return "Belum ada sinyal koin meme potensial yang tertangkap saat ini."
 
@@ -84,7 +93,7 @@ def send_price(message):
 @bot.message_handler(commands=['meme'])
 def send_meme(message):
     trending = get_gmgn_memes()
-    bot.reply_to(message, f"🚀 *Saringan Koin Meme Potensial (1H)*\n\n{trending}", parse_mode="Markdown")
+    bot.reply_to(message, f"🚀 *Saringan Koin Meme Potensial (Solana)*\n\n{trending}", parse_mode="Markdown")
 
 @app.route(f"/{TOKEN}", methods=['POST'])
 def webhook():
