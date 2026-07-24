@@ -23,8 +23,6 @@ def get_market_data():
                 resistance = round(current_price * 1.003, 2)
                 support = round(current_price * 0.997, 2)
                 
-                # Logika S&D dengan Perhitungan Stop Loss & Take Profit Otomatis
-                # Risiko SL dipatok 0.3% di bawah support, TP diset 1:2 (0.6% di atas harga buy)
                 sl_buy = round(support * 0.997, 2)
                 tp_buy = round(current_price * 1.006, 2)
                 
@@ -34,7 +32,7 @@ def get_market_data():
                         f"🟢 *SNIPER BUY & RISK MANAGEMENT ALERT!*\n"
                         f"- Action: **OPEN BUY** di Area Support\n"
                         f"- Entry Harga: `${current_price:,.2f}`\n"
-                        f"- 🛑 **Stop Loss (SL):** `${sl_buy:,.2f}` (Amankan Risiko)\n"
+                        f"- 🛑 **Stop Loss (SL):** `${sl_buy:,.2f}`\n"
                         f"- 🎯 **Take Profit (TP):** `${tp_buy:,.2f}` (Ratio 1:2)"
                     )
                 elif current_price >= resistance * 0.999:
@@ -59,7 +57,7 @@ def get_gmgn_memes_with_charts():
             meme_results = []
             seen = set()
             
-            sol_pairs = [p for p in pairs if p.get("chainId"] == "solana"]
+            sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
             
             for p in sol_pairs:
                 base_token = p.get("baseToken", {})
@@ -136,7 +134,7 @@ def send_welcome(message):
     text = (
         "🤖 *Finbot Sniper Engine Active*\n\n"
         "Perintah yang tersedia:\n"
-        "👉 `/price` atau `/tf15` - Cek harga emas & Kalkulasi SL/TP Otomatis\n"
+        "👉 `/price` atau `/tf15` - Cek harga emas & Kalkulasi SL/TP\n"
         "👉 `/news` - Panduan Sentimen Makro US\n"
         "👉 `/meme` - Saringan koin meme Solana"
     )
@@ -148,7 +146,6 @@ def send_price(message):
     USER_CHAT_ID = message.chat.id
     p, r, s, signal = get_market_data()
     
-    # Kalkulasi manual untuk ditampilkan saat user mengetik /tf15
     sl_buy = round(s * 0.997, 2)
     tp_buy = round(p * 1.006, 2)
     
@@ -159,7 +156,7 @@ def send_price(message):
         f"- Est. Resistance: `${r:,.2f}`\n\n"
         f"💡 *Rekomendasi Setup Buy & S&D:*\n"
         f"- 🛑 Rekomendasi Stop Loss (SL): `${sl_buy:,.2f}`\n"
-        f"- 🎯 Rekomendasi Take Profit (TP): `${tp_buy:,.2f}` (Risk Reward 1:2)\n\n"
+        f"- 🎯 Rekomendasi Take Profit (TP): `${tp_buy:,.2f}` (Ratio 1:2)\n\n"
         f"{signal}\n\n"
         f"📊 [Klik Disini untuk Buka Chart TradingView XAUUSD](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
     )
@@ -196,7 +193,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Sniper with Risk Management is running!", 200
+    return "Finbot Sniper Fixed is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
