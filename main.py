@@ -11,6 +11,12 @@ app = Flask(__name__)
 
 USER_CHAT_ID = None
 
+# Variabel Global untuk melacak status posisi aktif
+active_position = None  # Bisa bernilai None, "BUY", atau "SELL"
+entry_price_tracked = 0.0
+target_tp = 0.0
+target_sl = 0.0
+
 def get_market_data():
     try:
         url = "https://api.gold-api.com/price/XAU"
@@ -23,11 +29,9 @@ def get_market_data():
                 resistance = round(current_price * 1.0025, 2)
                 support = round(current_price * 0.9975, 2)
                 
-                # Setup Buy (Support)
                 sl_buy = round(current_price * 0.9985, 2)
                 tp_buy = round(current_price * 1.0035, 2)
                 
-                # Setup Sell (Resistance)
                 sl_sell = round(current_price * 1.0015, 2)
                 tp_sell = round(current_price * 0.9965, 2)
                 
@@ -115,26 +119,57 @@ def get_gmgn_memes_with_charts():
     return "⏳ Belum ada koin meme yang memenuhi kriteria saat ini."
 
 def background_price_monitor():
-    global USER_CHAT_ID
+    global USER_CHAT_ID, active_position, entry_price_tracked, target_tp, target_sl
     last_alert_status = None
+    
     while True:
         try:
             if USER_CHAT_ID:
                 p, r, s, signal = get_market_data()
-                if "SIGNAL" in signal and signal != last_alert_status:
+                
+                # Cek apakah ada posisi aktif yang sedang dipantau target TP/SL-nya
+                if active_position == "BUY":
+                    if p >= target_tp:
+                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (BUY)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n✅ *Status:PROFIT Selesai!*", parse_mode="Markdown")
+                        active_position = None
+                    elif p <= target_sl:
+                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (BUY)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n❌ *Status: Evaluasi Loss Disiplin.*", parse_mode="Markdown")
+                        active_position = None
+                        
+                elif active_position == "SELL":
+                    if p <= target_tp:
+                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (SELL)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n✅ *Status: PROFIT Selesai!*", parse_mode="Markdown")
+                        active_position = None
+                    elif p >= target_sl:
+                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n❌ *Status: Evaluasi Loss Disiplin.*", parse_mode="Markdown")
+                        active_position = None
+
+                # Kirim alert sinyal baru jika belum ada posisi aktif
+                if "SIGNAL" in signal and signal != last_alert_status and active_position is None:
                     last_alert_status = signal
+                    if "BUY" in signal:
+                        active_position = "BUY"
+                        entry_price_tracked = p
+                        target_tp = round(p * 1.0035, 2)
+                        target_sl = round(p * 0.9985, 2)
+                    elif "SELL" in signal:
+                        active_position = "SELL"
+                        entry_price_tracked = p
+                        target_tp = round(p * 0.9965, 2)
+                        target_sl = round(p * 1.0015, 2)
+                        
                     alert_text = (
                         f"⚡ *AUTOMATIC SCALPING ALERT!* ⚡\n\n"
                         f"📈 *XAUUSD Live Price:* `${p:,.2f}`\n\n"
                         f"{signal}\n\n"
-                        f"📊 [Buka Chart TradingView](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
+                        f"🤖 *Bot mulai melacak target TP & SL secara otomatis sampai selesai.*"
                     )
                     bot.send_message(USER_CHAT_ID, alert_text, parse_mode="Markdown", disable_web_page_preview=False)
                 elif "Menunggu" in signal:
                     last_alert_status = "Menunggu"
         except Exception as e:
             print(f"Error Background Monitor: {e}")
-        time.sleep(120)
+        time.sleep(60)
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -180,9 +215,9 @@ def send_us_news(message):
     news_text = (
         "🇺🇸 *US Macro & Fundamental Guide (XAUUSD)*\n\n"
         "⚠️ *Aturan Scalper Buy & Sell:*\n"
-        "1. Jangan ambil posisi Buy/Sell berlawanan arah saat data berita merah rilis.\n"
-        "2. Manfaatkan area Resistance untuk eksekusi **Sell** dan Support untuk **Buy**.\n"
-        "3. Jaga kedisiplinan SL rapat agar target maksimal 2x loss seminggu tercapai."
+        "1. Jangan ambil posisi berlawanan arah saat rilis berita merah.\n"
+        "2. Bot kini otomatis melacak apakah target TP atau SL tercapai setelah sinyal diberikan.\n"
+        "3. Jaga kedisiplinan target maksimal 2x loss seminggu!"
     )
     bot.reply_to(message, news_text, parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -203,7 +238,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Scalper Buy & Sell Engine is running!", 200
+    return "Finbot Tracker Engine is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
