@@ -7,7 +7,6 @@ TOKEN = str(os.getenv("TELEGRAM_BOT_TOKEN", ""))
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Fungsi Analisis Harga Emas + Sinyal Sniper Entry S&D
 def get_market_data():
     try:
         url = "https://api.gold-api.com/price/XAU"
@@ -32,54 +31,46 @@ def get_market_data():
     
     return 2350.50, 2360.00, 2340.00, "Netral"
 
-# Fungsi Saringan Koin Meme Live (Solana Pairs) yang Akurat
 def get_gmgn_memes():
     try:
-        # Mengambil data profil token terbaru yang mencakup koin-koin aktif di pasaran
-        url = "https://api.dexscreener.com/token-profiles/latest/v1"
+        url = "https://api.dexscreener.com/latest/dex/search?q=SOL"
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=6)
         
         if response.status_code == 200:
-            tokens = response.json()
-            meme_list = []
+            data = response.json()
+            pairs = data.get("pairs", [])
             
-            # Filter khusus jaringan Solana
-            sol_tokens = [t for t in tokens if t.get("chainId") == "solana"]
-            if not sol_tokens:
-                sol_tokens = tokens
+            meme_list = []
+            seen = set()
+            
+            for item in pairs:
+                chainId = item.get("chainId")
+                base_token = item.get("baseToken", {})
+                symbol = base_token.get("symbol", "").upper()
+                name = base_token.get("name", "Token")
                 
-            for item in sol_tokens[:5]:
-                token_address = item.get("tokenAddress", "")
-                if token_address:
-                    # Ambil data pasangan harga spesifik per koin
-                    detail_res = requests.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_address}", headers=headers, timeout=3)
-                    if detail_res.status_code == 200:
-                        pair_data = detail_res.json().get("pairs", [])
-                        if pair_data:
-                            p = pair_data[0]
-                            base_token = p.get("baseToken", {})
-                            name = base_token.get("name", "Token")
-                            symbol = base_token.get("symbol", "UNKNOWN")
-                            
-                            h1_change = p.get("priceChange", {}).get("h1", 0)
-                            if h1_change is None:
-                                h1_change = 0
-                            h1_change = round(float(h1_change), 2)
-                            
-                            status_sniper = "🎯 Potensi Masuk" if h1_change > 10 else "👀 Pantau"
-                            
-                            if h1_change > 0:
-                                meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [{status_sniper}]")
-                            else:
-                                meme_list.append(f"🔴 *{name}* (`{symbol}`) - 1h: `{h1_change}%`")
+                # Hanya ambil jaringan Solana, bukan token SOL, dan belum pernah tercatat
+                if chainId == "solana" and symbol and symbol != "SOL" and symbol not in seen:
+                    h1_change = item.get("priceChange", {}).get("h1", 0)
+                    if h1_change is None:
+                        h1_change = 0
+                    h1_change = round(float(h1_change), 2)
+                    
+                    # FILTER KETAT: Hanya ambil koin yang potensial bagus (kenaikan 1h di atas 10%)
+                    if h1_change >= 10.0:
+                        seen.add(symbol)
+                        meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [🎯 Potensi Bagus]")
+            
+            # Urutkan dari kenaikan tertinggi
+            meme_list = sorted(meme_list, key=lambda x: float(x.split("+")[1].split("%")[0]), reverse=True)
             
             if meme_list:
-                return "\n".join(meme_list)
+                return "\n".join(meme_list[:5]) # Batasi 5 koin terbaik saja
     except Exception as e:
-        print(f"Error DexScreener Profiles: {e}")
+        print(f"Error DexScreener Pairs: {e}")
     
-    return "Belum ada sinyal koin meme potensial yang tertangkap saat ini."
+    return "Belum ada koin meme dengan potensi kenaikan kuat yang tertangkap saat ini."
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -87,7 +78,7 @@ def send_welcome(message):
         "🤖 *Finbot Sniper Engine Active*\n\n"
         "Perintah yang tersedia:\n"
         "👉 `/price` atau `/tf15` - Cek harga emas & Sinyal Sniper S&D\n"
-        "👉 `/meme` - Saringan koin meme potensial untuk Sniper Entry"
+        "👉 `/meme` - Saringan koin meme potensial terpilih"
     )
     bot.reply_to(message, text, parse_mode="Markdown")
 
@@ -106,7 +97,7 @@ def send_price(message):
 @bot.message_handler(commands=['meme'])
 def send_meme(message):
     trending = get_gmgn_memes()
-    bot.reply_to(message, f"🚀 *Sniper Screener Koin Meme (Solana)*\n\n{potensial}", parse_mode="Markdown")
+    bot.reply_to(message, f"🚀 *Saringan Koin Meme Berpotensi (Solana)*\n\n{trending}", parse_mode="Markdown")
 
 @app.route(f"/{TOKEN}", methods=['POST'])
 def webhook():
