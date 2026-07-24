@@ -44,15 +44,15 @@ def get_market_data():
                 
                 if current_price >= sell_zone_min:
                     trend_status = (
-                        f"📉 *M5 SETUP: ZONA ENTRY SELL (BEARISH)*\n"
-                        f"- 📍 **Zona Entry:** `${sell_zone_min:,.2f} - {sell_zone_max:,.2f}`\n"
+                        f"📉 *M5 ZONA ENTRY SELL (BEARISH)*\n"
+                        f"- 📍 **Zona:** `${sell_zone_min:,.2f} - {sell_zone_max:,.2f}`\n"
                         f"- 🛑 **SL (125 pip):** `${sl_sell:,.2f}`\n"
                         f"- 🎯 **TP (145 pip):** `${tp_sell:,.2f}`"
                     )
                 elif current_price <= buy_zone_max:
                     trend_status = (
-                        f"📈 *M5 SETUP: ZONA ENTRY BUY (BULLISH)*\n"
-                        f"- 📍 **Zona Entry:** `${buy_zone_min:,.2f} - {buy_zone_max:,.2f}`\n"
+                        f"📈 *M5 ZONA ENTRY BUY (BULLISH)*\n"
+                        f"- 📍 **Zona:** `${buy_zone_min:,.2f} - {buy_zone_max:,.2f}`\n"
                         f"- 🛑 **SL (125 pip):** `${sl_buy:,.2f}`\n"
                         f"- 🎯 **TP (145 pip):** `${tp_buy:,.2f}`"
                     )
@@ -146,7 +146,8 @@ def background_price_monitor():
                         bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS M5 TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Cut Loss Disiplin.*", parse_mode="Markdown")
                         active_position = None
 
-                if "SETUP" in signal and signal != last_alert_status and active_position is None:
+                # Deteksi kata kunci ZONA ENTRY agar alert otomatis terkirim
+                if "ZONA ENTRY" in signal and signal != last_alert_status and active_position is None:
                     last_alert_status = signal
                     if "BUY" in signal:
                         active_position = "BUY"
