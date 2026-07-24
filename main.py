@@ -4,8 +4,8 @@ import yfinance as yf
 import requests
 from flask import Flask, request
 
-# Memastikan TOKEN dibaca sebagai teks string dengan aman
-TOKEN = str(os.getenv("TELEGRAM_BOT_TOKEN", "8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A"))
+# Ambil token dengan benar dari Environment Variables Render
+TOKEN = os.getenv("8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A")
 bot = telebot.TeleBot(7657888575)
 app = Flask(__name__)
 
