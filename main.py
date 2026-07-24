@@ -33,57 +33,94 @@ def get_market_data():
 
 def get_gmgn_memes():
     try:
-        # Menggunakan endpoint pencarian umum DexScreener yang mencakup pasangan likuiditas aktif
-        url = "https://api.dexscreener.com/latest/dex/search?q=solana"
+        # Menggunakan endpoint token boosts / trending terbaru agar data koin meme langsung nampak
+        url = "https://api.dexscreener.com/token-boosts/latest/v1"
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=6)
         
         if response.status_code == 200:
-            data = response.json()
-            pairs = data.get("pairs", [])
-            
-            raw_list = []
+            boosted_tokens = response.json()
+            meme_list = []
             seen = set()
             
-            for item in pairs:
-                chainId = item.get("chainId")
-                base_token = item.get("baseToken", {})
-                symbol = base_token.get("symbol", "").upper()
-                name = base_token.get("name", "Token")
+            # Ambil token yang berada di jaringan solana
+            sol_tokens = [t for t in boosted_tokens if t.get("chainId") == "solana"]
+            if not sol_tokens:
+                sol_tokens = boosted_tokens # Fallback jika format berbeda
                 
-                # Filter jaringan Solana, bukan token induk SOL, dan belum duplikat
-                if chainId == "solana" and symbol and symbol != "SOL" and symbol not in seen:
-                    h1_change = item.get("priceChange", {}).get("h1", 0)
-                    if h1_change is None:
-                        h1_change = 0
-                    h1_change = round(float(h1_change), 2)
+            for item in sol_tokens[:10]:
+                token_address = item.get("tokenAddress", "")
+                if token_address and token_address not in seen:
+                    seen.add(token_address)
                     
-                    # FOKUS PEMANTAUAN: Hanya ambil koin yang sedang hijau (kenaikan > 0%)
-                    if h1_change > 0:
-                        seen.add(symbol)
-                        raw_list.append((name, symbol, h1_change))
-            
-            # Urutkan dari persentase kenaikan 1 jam tertinggi ke terendah
-            raw_list = sorted(raw_list, key=lambda x: x[2], reverse=True)
-            
-            meme_list = []
-            for name, symbol, h1_change in raw_list[:5]:
-                # Label status dinamis berdasarkan tingkat kenaikannya
-                if h1_change >= 20.0:
-                    status_sniper = "🔥 Strong Pump"
-                elif h1_change >= 5.0:
-                    status_sniper = "🎯 Potensi Bagus"
-                else:
-                    status_sniper = "👀 Baru Naik"
-                    
-                meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [{status_sniper}]")
+                    # Request detail pair per token untuk ambil harga & perubahan 1 jam
+                    detail_res = requests.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_address}", headers=headers, timeout=3)
+                    if detail_res.status_code == 200:
+                        pair_data = detail_res.json().get("pairs", [])
+                        if pair_data:
+                            p = pair_data[0]
+                            base_token = p.get("baseToken", {})
+                            name = base_token.get("name", "Token")
+                            symbol = base_token.get("symbol", "UNKNOWN")
+                            
+                            h1_change = p.get("priceChange", {}).get("h1", 0)
+                            if h1_change is None:
+                                h1_change = 0
+                            h1_change = round(float(h1_change), 2)
+                            
+                            # Tentukan status sniper
+                            if h1_change > 10:
+                                status_sniper = "🔥 Strong Pump"
+                            elif h1_change > 0:
+                                status_sniper = "🎯 Potensi Bagus"
+                            else:
+                                status_sniper = "👀 Pantau"
+                                
+                            if h1_change >= 0:
+                                meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [{status_sniper}]")
+                            else:
+                                meme_list.append(f"🔴 *{name}* (`{symbol}`) - 1h: `{h1_change}%` [{status_sniper}]")
+                            
+                            if len(meme_list) >= 5:
+                                break
             
             if meme_list:
                 return "\n".join(meme_list)
     except Exception as e:
-        print(f"Error DexScreener Pairs: {e}")
+        print(f"Error DexScreener Boosts: {e}")
     
-    return "⏳ Belum ada koin meme Solana yang melompat naik saat ini. Silakan coba cek beberapa saat lagi."
+    # Fallback pengaman jika data boosts kosong: gunakan endpoint pencarian umum langsung urutkan
+    try:
+        fallback_url = "https://api.dexscreener.com/latest/dex/search?q=solana"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        fb_res = requests.get(fallback_url, headers=headers, timeout=5)
+        if fb_res.status_code == 200:
+            pairs = fb_res.json().get("pairs", [])
+            sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+            sol_pairs = sorted(sol_pairs, key=lambda x: x.get("priceChange", {}).get("h1", 0) or 0, reverse=True)
+            
+            fallback_list = []
+            seen_fb = set()
+            for p in sol_pairs:
+                bt = p.get("baseToken", {})
+                name = bt.get("name", "Token")
+                symbol = bt.get("symbol", "UNKNOWN")
+                if symbol == "SOL" or symbol in seen_fb:
+                    continue
+                seen_fb.add(symbol)
+                
+                h1 = p.get("priceChange", {}).get("h1", 0) or 0
+                h1 = round(float(h1), 2)
+                
+                fallback_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1}%` [🎯 Pantau Aktif]")
+                if len(fallback_list) >= 5:
+                    break
+            if fallback_list:
+                return "\n".join(fallback_list)
+    except Exception:
+        pass
+
+    return "⏳ Sedang memuat data koin meme, silakan coba ketik /meme sekali lagi."
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
