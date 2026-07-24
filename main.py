@@ -26,46 +26,42 @@ def get_market_data():
             data = response.json()
             current_price = float(data.get("price", 0))
             if current_price > 0:
-                # Batas Band Tren M5
-                upper_band = round(current_price * 1.0015, 2)
-                lower_band = round(current_price * 0.9985, 2)
-                
-                # Pembuatan Zona Entry M5 (Rentang Area Aksi)
+                # Pembuatan Zona Entry M5
                 buy_zone_min = round(current_price * 0.9985, 2)
                 buy_zone_max = round(current_price * 0.9995, 2)
                 
                 sell_zone_min = round(current_price * 1.0005, 2)
                 sell_zone_max = round(current_price * 1.0015, 2)
                 
-                sl_buy = round(current_price * 0.9975, 2)
-                tp_buy = round(current_price * 1.0030, 2)
+                # Kalkulasi SL 125 pip ($12.5) & TP 145 pip ($14.5) untuk XAUUSD
+                sl_buy = round(current_price - 12.50, 2)
+                tp_buy = round(current_price + 14.50, 2)
                 
-                sl_sell = round(current_price * 1.0025, 2)
-                tp_sell = round(current_price * 0.9970, 2)
+                sl_sell = round(current_price + 12.50, 2)
+                tp_sell = round(current_price - 14.50, 2)
                 
                 trend_status = "⏳ *M5 ENGINE:* Menunggu harga memasuki Zona Entry optimal."
                 
-                # Logika Berdasarkan Zona Entry M5
                 if current_price >= sell_zone_min:
                     trend_status = (
                         f"📉 *M5 SETUP: ZONA ENTRY SELL (BEARISH)*\n"
-                        f"- 📍 **Zona Entry:** `${sell_zone_min:,.2f}` - `${sell_zone_max:,.2f}`\n"
-                        f"- ⚡ **Action:** Tunggu pantulan di zona sell untuk Open SELL\n"
-                        f"- 🛑 **SL:** `${sl_sell:,.2f}` | 🎯 **TP:** `${tp_sell:,.2f}`"
+                        f"- 📍 **Zona Entry:** `${sell_zone_min:,.2f} - {sell_zone_max:,.2f}`\n"
+                        f"- 🛑 **SL (125 pip):** `${sl_sell:,.2f}`\n"
+                        f"- 🎯 **TP (145 pip):** `${tp_sell:,.2f}`"
                     )
                 elif current_price <= buy_zone_max:
                     trend_status = (
                         f"📈 *M5 SETUP: ZONA ENTRY BUY (BULLISH)*\n"
-                        f"- 📍 **Zona Entry:** `${buy_zone_min:,.2f}` - `${buy_zone_max:,.2f}`\n"
-                        f"- ⚡ **Action:** Tunggu pantulan di zona buy untuk Open BUY\n"
-                        f"- 🛑 **SL:** `${sl_buy:,.2f}` | 🎯 **TP:** `${tp_buy:,.2f}`"
+                        f"- 📍 **Zona Entry:** `${buy_zone_min:,.2f} - {buy_zone_max:,.2f}`\n"
+                        f"- 🛑 **SL (125 pip):** `${sl_buy:,.2f}`\n"
+                        f"- 🎯 **TP (145 pip):** `${tp_buy:,.2f}`"
                     )
                 
-                return round(current_price, 2), buy_zone_min, buy_zone_max, sell_zone_min, sell_zone_max, trend_status
+                return round(current_price, 2), buy_zone_min, buy_zone_max, sell_zone_min, sell_zone_max, sl_buy, tp_buy, sl_sell, tp_sell, trend_status
     except Exception as e:
         print(f"Error Gold API: {e}")
     
-    return 2350.50, 2340.00, 2345.00, 2355.00, 2360.00, "Netral"
+    return 2350.50, 2340.00, 2345.00, 2355.00, 2360.00, 2338.00, 2365.00, 2362.50, 2336.00, "Netral"
 
 def get_gmgn_memes_with_charts():
     try:
@@ -132,7 +128,7 @@ def background_price_monitor():
     while True:
         try:
             if USER_CHAT_ID:
-                p, b_min, b_max, s_min, s_max, signal = get_market_data()
+                p, b_min, b_max, s_min, s_max, sl_b, tp_b, sl_s, tp_s, signal = get_market_data()
                 
                 if active_position == "BUY":
                     if p >= target_tp:
@@ -155,13 +151,13 @@ def background_price_monitor():
                     if "BUY" in signal:
                         active_position = "BUY"
                         entry_price_tracked = p
-                        target_tp = round(p * 1.0030, 2)
-                        target_sl = round(p * 0.9975, 2)
+                        target_tp = tp_b
+                        target_sl = sl_b
                     elif "SELL" in signal:
                         active_position = "SELL"
                         entry_price_tracked = p
-                        target_tp = round(p * 0.9970, 2)
-                        target_sl = round(p * 1.0025, 2)
+                        target_tp = tp_s
+                        target_sl = sl_s
                         
                     alert_text = (
                         f"⚡ *M5 ZONA ENTRY ALERT!* ⚡\n\n"
@@ -183,7 +179,7 @@ def send_welcome(message):
     text = (
         "🤖 *Finbot M5 Zone Engine Active*\n\n"
         "Perintah yang tersedia:\n"
-        "👉 `/scalp` atau `/tf5` - Cek Zona Entry & Tren M5\n"
+        "👉 `/scalp` atau `/tf5` - Cek Zona Entry, SL & TP M5\n"
         "👉 `/news` - Panduan Sentimen Makro XAUUSD\n"
         "👉 `/meme` - Saringan koin meme Solana"
     )
@@ -193,14 +189,16 @@ def send_welcome(message):
 def send_scalp(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
-    p, b_min, b_max, s_min, s_max, signal = get_market_data()
+    p, b_min, b_max, s_min, s_max, sl_b, tp_b, sl_s, tp_s, signal = get_market_data()
     
     text = (
         f"📊 *XAUUSD M5 Zona Entry Setup*\n"
         f"- Harga Spot Saat Ini: `${p:,.2f}`\n\n"
-        f"📌 *Rincian Zona & Risiko:*\n"
+        f"📌 *Rincian Zona & Risiko (SL 125 pip | TP 145 pip):*\n"
         f"🟢 **Zona BUY:** `${b_min:,.2f} - {b_max:,.2f}`\n"
-        f"🔴 **Zona SELL:** `${s_min:,.2f} - {s_max:,.2f}`\n\n"
+        f"   └ SL: `${sl_b:,.2f}` | TP: `${tp_b:,.2f}`\n"
+        f"🔴 **Zona SELL:** `${s_min:,.2f} - {s_max:,.2f}`\n"
+        f"   └ SL: `${sl_s:,.2f}` | TP: `${tp_s:,.2f}`\n\n"
         f"{signal}\n\n"
         f"📊 [Buka Chart TradingView XAUUSD (M5)](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
     )
