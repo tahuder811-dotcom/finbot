@@ -4,11 +4,12 @@ import yfinance as yf
 import requests
 from flask import Flask, request
 
-TOKEN = os.getenv("8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A")
+# Memastikan TOKEN dibaca sebagai teks string dengan aman
+TOKEN = str(os.getenv("TELEGRAM_BOT_TOKEN", "8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A"))
 bot = telebot.TeleBot(7657888575)
 app = Flask(__name__)
 
-# Ambil harga emas asli
+# Fungsi ambil harga emas asli
 def get_market_data():
     try:
         gold = yf.Ticker("GC=F")
@@ -22,7 +23,7 @@ def get_market_data():
         print(f"Error: {e}")
     return 0.0, 0.0, 0.0
 
-# Ambil tren meme dari GMGN
+# Fungsi ambil tren meme dari GMGN
 def get_gmgn_memes():
     try:
         url = "https://gmgn.ai/defi/quotation/v1/ranking/swaps/1h?device_id=1&client_id=web&app_version=2.0.0"
@@ -68,7 +69,7 @@ def send_meme(message):
     trending = get_gmgn_memes()
     bot.reply_to(message, f"🚀 *Tren Meme GMGN*\n\n{trending}", parse_mode="Markdown")
 
-# Route Webhook agar Render tidak mati/failed
+# Route Webhook agar Render tetap aktif
 @app.route(f"/{TOKEN}", methods=['POST'])
 def webhook():
     json_str = request.get_data().decode('UTF-8')
