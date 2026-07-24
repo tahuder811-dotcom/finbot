@@ -37,7 +37,6 @@ def get_market_data():
 
 def get_gmgn_memes_with_charts():
     try:
-        # Menggunakan endpoint search DexScreener untuk menyaring koin baru (Fresh Launch / Early)
         url = "https://api.dexscreener.com/latest/dex/search?q=solana"
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=6)
@@ -62,20 +61,26 @@ def get_gmgn_memes_with_charts():
                     continue
                 seen.add(symbol)
                 
+                # Filter fundamental untuk menghindari koin manipulasi / low liq
+                liquidity = p.get("liquidity", {})
+                usd_liq = liquidity.get("usd", 0) or 0
+                
+                volume = p.get("volume", {})
+                h24_vol = volume.get("h24", 0) or 0
+                
                 price_change = p.get("priceChange", {})
                 h1_change = price_change.get("h1", 0) or 0
-                m5_change = price_change.get("m5", 0) or 0
-                
                 h1_change = round(float(h1_change), 2)
-                m5_change = round(float(m5_change), 2)
                 
-                # Filter koin awal (Fresh Launch): Kenaikan 1 jam masih di bawah 25% agar tidak ketinggalan momentum
-                if 0 < h1_change <= 25 and m5_change >= 0:
-                    status_sniper = "🚀 Fresh Launch / Early"
+                # Syarat: Likuiditas >= $15,000 dan Volume 24h >= $5,000 (Komunitas aktif & sehat)
+                if usd_liq >= 15000 and h24_vol >= 5000:
+                    status_sniper = "🛡️ Likuiditas Sehat & Komunitas Aktif"
                     chart_link = f"https://dexscreener.com/solana/{pair_address if pair_address else token_address}"
                     
                     text_item = (
-                        f"🟢 *{name}* (`{symbol}`) - 5m: `+{m5_change}%` | 1h: `+{h1_change}%` [{status_sniper}]\n"
+                        f"🟢 *{name}* (`{symbol}`) | 1h: `{h1_change}%`\n"
+                        f"💧 Liq: `${usd_liq:,.0f}` | 📊 Vol: `${h24_vol:,.0f}`\n"
+                        f"[{status_sniper}]\n"
                         f"📊 [Buka Chart Live]({chart_link})"
                     )
                     meme_results.append(text_item)
@@ -86,9 +91,9 @@ def get_gmgn_memes_with_charts():
             if meme_results:
                 return "\n\n".join(meme_results)
     except Exception as e:
-        print(f"Error DexScreener Fresh Launch Fetch: {e}")
+        print(f"Error DexScreener Filter: {e}")
     
-    return "⏳ Belum ada koin meme dengan momentum *early* yang tertangkap saat ini. Coba ketik /meme beberapa saat lagi."
+    return "⏳ Belum ada koin dengan likuiditas sehat yang tertangkap saat ini. Coba ketik /meme beberapa saat lagi."
 
 def background_price_monitor():
     global USER_CHAT_ID
@@ -123,7 +128,7 @@ def send_welcome(message):
         "🤖 *Finbot Sniper Engine Active*\n\n"
         "Perintah yang tersedia:\n"
         "👉 `/price` atau `/tf15` - Cek harga emas & Link Chart XAUUSD\n"
-        "👉 `/meme` - Saringan koin meme Solana (Fresh Launch & Early Momentum)"
+        "👉 `/meme` - Saringan koin meme Solana (Anti-Manipulasi & Likuiditas Sehat)"
     )
     bot.reply_to(message, text, parse_mode="Markdown")
 
@@ -147,7 +152,7 @@ def send_meme(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
     trending = get_gmgn_memes_with_charts()
-    text = f"🚀 *Saringan Koin Meme Fresh Launch (Solana)*\n\n{trending}"
+    text = f"🚀 *Saringan Koin Meme (Likuiditas Sehat)*\n\n{trending}"
     bot.reply_to(message, text, parse_mode="Markdown", disable_web_page_preview=True)
 
 @app.route(f"/{TOKEN}", methods=['POST'])
@@ -159,7 +164,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Sniper Fresh Launch is running!", 200
+    return "Finbot Sniper Safe Filter is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
