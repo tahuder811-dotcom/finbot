@@ -2,9 +2,11 @@ import os
 import telebot
 import yfinance as yf
 import requests
+from flask import Flask, request
 
 TOKEN = os.getenv("8914087726:AAEfKU9rv7ZoRfHlOMhme_xM9l_luOfS33A")
 bot = telebot.TeleBot(7657888575)
+app = Flask(__name__)
 
 # Ambil harga emas asli
 def get_market_data():
@@ -66,5 +68,17 @@ def send_meme(message):
     trending = get_gmgn_memes()
     bot.reply_to(message, f"🚀 *Tren Meme GMGN*\n\n{trending}", parse_mode="Markdown")
 
+# Route Webhook agar Render tidak mati/failed
+@app.route(f"/{TOKEN}", methods=['POST'])
+def webhook():
+    json_str = request.get_data().decode('UTF-8')
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "!", 200
+
+@app.route("/")
+def index():
+    return "Finbot Ultimate with TF 15M S&D Engine is Running 24/7!"
+
 if __name__ == "__main__":
-    print("Bot is Running!")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
