@@ -33,7 +33,8 @@ def get_market_data():
 
 def get_gmgn_memes():
     try:
-        url = "https://api.dexscreener.com/latest/dex/search?q=SOL"
+        # Menggunakan endpoint pencarian umum DexScreener yang mencakup pasangan likuiditas aktif
+        url = "https://api.dexscreener.com/latest/dex/search?q=solana"
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=6)
         
@@ -41,7 +42,7 @@ def get_gmgn_memes():
             data = response.json()
             pairs = data.get("pairs", [])
             
-            meme_list = []
+            raw_list = []
             seen = set()
             
             for item in pairs:
@@ -50,27 +51,39 @@ def get_gmgn_memes():
                 symbol = base_token.get("symbol", "").upper()
                 name = base_token.get("name", "Token")
                 
-                # Hanya ambil jaringan Solana, bukan token SOL, dan belum pernah tercatat
+                # Filter jaringan Solana, bukan token induk SOL, dan belum duplikat
                 if chainId == "solana" and symbol and symbol != "SOL" and symbol not in seen:
                     h1_change = item.get("priceChange", {}).get("h1", 0)
                     if h1_change is None:
                         h1_change = 0
                     h1_change = round(float(h1_change), 2)
                     
-                    # FILTER KETAT: Hanya ambil koin yang potensial bagus (kenaikan 1h di atas 10%)
-                    if h1_change >= 10.0:
+                    # FOKUS PEMANTAUAN: Hanya ambil koin yang sedang hijau (kenaikan > 0%)
+                    if h1_change > 0:
                         seen.add(symbol)
-                        meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [🎯 Potensi Bagus]")
+                        raw_list.append((name, symbol, h1_change))
             
-            # Urutkan dari kenaikan tertinggi
-            meme_list = sorted(meme_list, key=lambda x: float(x.split("+")[1].split("%")[0]), reverse=True)
+            # Urutkan dari persentase kenaikan 1 jam tertinggi ke terendah
+            raw_list = sorted(raw_list, key=lambda x: x[2], reverse=True)
+            
+            meme_list = []
+            for name, symbol, h1_change in raw_list[:5]:
+                # Label status dinamis berdasarkan tingkat kenaikannya
+                if h1_change >= 20.0:
+                    status_sniper = "🔥 Strong Pump"
+                elif h1_change >= 5.0:
+                    status_sniper = "🎯 Potensi Bagus"
+                else:
+                    status_sniper = "👀 Baru Naik"
+                    
+                meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [{status_sniper}]")
             
             if meme_list:
-                return "\n".join(meme_list[:5]) # Batasi 5 koin terbaik saja
+                return "\n".join(meme_list)
     except Exception as e:
         print(f"Error DexScreener Pairs: {e}")
     
-    return "Belum ada koin meme dengan potensi kenaikan kuat yang tertangkap saat ini."
+    return "⏳ Belum ada koin meme Solana yang melompat naik saat ini. Silakan coba cek beberapa saat lagi."
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
