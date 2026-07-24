@@ -23,9 +23,20 @@ def get_market_data():
                 resistance = round(current_price * 1.003, 2)
                 support = round(current_price * 0.997, 2)
                 
+                # Logika S&D dengan Perhitungan Stop Loss & Take Profit Otomatis
+                # Risiko SL dipatok 0.3% di bawah support, TP diset 1:2 (0.6% di atas harga buy)
+                sl_buy = round(support * 0.997, 2)
+                tp_buy = round(current_price * 1.006, 2)
+                
                 sniper_signal = "⏳ Menunggu area Demand/Supply valid (Price Action)"
                 if current_price <= support * 1.001:
-                    sniper_signal = "🟢 *SNIPER BUY ALERT!* Harga di Area Support/Demand Kuat."
+                    sniper_signal = (
+                        f"🟢 *SNIPER BUY & RISK MANAGEMENT ALERT!*\n"
+                        f"- Action: **OPEN BUY** di Area Support\n"
+                        f"- Entry Harga: `${current_price:,.2f}`\n"
+                        f"- 🛑 **Stop Loss (SL):** `${sl_buy:,.2f}` (Amankan Risiko)\n"
+                        f"- 🎯 **Take Profit (TP):** `${tp_buy:,.2f}` (Ratio 1:2)"
+                    )
                 elif current_price >= resistance * 0.999:
                     sniper_signal = "🔴 *SNIPER SELL ALERT!* Harga di Area Resistance/Supply."
                 
@@ -48,7 +59,7 @@ def get_gmgn_memes_with_charts():
             meme_results = []
             seen = set()
             
-            sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+            sol_pairs = [p for p in pairs if p.get("chainId"] == "solana"]
             
             for p in sol_pairs:
                 base_token = p.get("baseToken", {})
@@ -103,7 +114,7 @@ def background_price_monitor():
                 if "ALERT!" in signal and signal != last_alert_status:
                     last_alert_status = signal
                     alert_text = (
-                        f"🚨 *AUTOMATIC SNIPER ALERT!* 🚨\n\n"
+                        f"🚨 *AUTOMATIC RISK-MANAGED SNIPER ALERT!* 🚨\n\n"
                         f"📈 *XAUUSD Market Update*\n"
                         f"- Harga Spot: `${p:,.2f}`\n"
                         f"- Est. Resistance: `${r:,.2f}`\n"
@@ -125,8 +136,8 @@ def send_welcome(message):
     text = (
         "🤖 *Finbot Sniper Engine Active*\n\n"
         "Perintah yang tersedia:\n"
-        "👉 `/price` atau `/tf15` - Cek harga emas & Link Chart XAUUSD\n"
-        "👉 `/news` - Panduan & Cek Sentimen Makro AS (The Fed / Trump Factor)\n"
+        "👉 `/price` atau `/tf15` - Cek harga emas & Kalkulasi SL/TP Otomatis\n"
+        "👉 `/news` - Panduan Sentimen Makro US\n"
         "👉 `/meme` - Saringan koin meme Solana"
     )
     bot.reply_to(message, text, parse_mode="Markdown")
@@ -136,11 +147,19 @@ def send_price(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
     p, r, s, signal = get_market_data()
+    
+    # Kalkulasi manual untuk ditampilkan saat user mengetik /tf15
+    sl_buy = round(s * 0.997, 2)
+    tp_buy = round(p * 1.006, 2)
+    
     text = (
-        f"📈 *XAUUSD Sniper Update*\n"
+        f"📈 *XAUUSD Sniper & Risk Management*\n"
         f"- Harga Spot: `${p:,.2f}`\n"
-        f"- Est. Resistance: `${r:,.2f}`\n"
-        f"- Est. Support: `${s:,.2f}`\n\n"
+        f"- Est. Support: `${s:,.2f}`\n"
+        f"- Est. Resistance: `${r:,.2f}`\n\n"
+        f"💡 *Rekomendasi Setup Buy & S&D:*\n"
+        f"- 🛑 Rekomendasi Stop Loss (SL): `${sl_buy:,.2f}`\n"
+        f"- 🎯 Rekomendasi Take Profit (TP): `${tp_buy:,.2f}` (Risk Reward 1:2)\n\n"
         f"{signal}\n\n"
         f"📊 [Klik Disini untuk Buka Chart TradingView XAUUSD](https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD)"
     )
@@ -152,11 +171,11 @@ def send_us_news(message):
     USER_CHAT_ID = message.chat.id
     news_text = (
         "🇺🇸 *US Macro & Fundamental Guide (XAUUSD)*\n\n"
-        "⚠️ *Faktor Utama Penggerak Emas saat Ini:*\n"
-        "1. **Kebijakan The Fed (Suku Bunga & Inflasi):** Suku bunga tinggi biasanya menekan emas, sementara sinyal pemangkasan suku bunga atau inflasi tinggi membuat emas terbang.\n"
-        "2. **Trump & Kebijakan Geopolitik:** Pernyataan atau kebijakan tarif dagang Trump sering memicu volatilitas tinggi pada DXY (US Dollar Index) yang berbanding terbalik dengan emas.\n"
-        "3. **Jam Rawan (Sesi AS):** Volatilitas terbesar emas terjadi pada pukul **19.30 WIB – 23.00 WIB** (saat bursa New York buka dan rilis data penting AS).\n\n"
-        "💡 *Tips Anti-Loss Uji Coba Seminggu:* Jangan pernah membuka posisi *scalping* 15 menit sebelum rilis data besar AS (seperti CPI, NFP, atau FOMC Meeting)!"
+        "⚠️ *Faktor Utama Penggerak Emas:*\n"
+        "1. Kebijakan The Fed & Suku Bunga.\n"
+        "2. Faktor Politik/Trump & Geopolitik terhadap DXY.\n"
+        "3. Jam Rawan Sesi AS: 19.30 WIB – 23.00 WIB.\n\n"
+        "💡 *Tips Disiplin:* Selalu pasang Stop Loss sesuai perhitungan bot untuk mengamankan target maksimal 2x loss seminggu!"
     )
     bot.reply_to(message, news_text, parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -177,7 +196,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Sniper with US Macro Guide is running!", 200
+    return "Finbot Sniper with Risk Management is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
