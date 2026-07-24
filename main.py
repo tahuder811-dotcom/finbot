@@ -11,8 +11,8 @@ app = Flask(__name__)
 
 USER_CHAT_ID = None
 
-# Variabel Global untuk melacak status posisi aktif
-active_position = None  # Bisa bernilai None, "BUY", atau "SELL"
+# Variabel Global untuk melacak posisi aktif & target TP/SL
+active_position = None  # "BUY" atau "SELL"
 entry_price_tracked = 0.0
 target_tp = 0.0
 target_sl = 0.0
@@ -29,32 +29,38 @@ def get_market_data():
                 resistance = round(current_price * 1.0025, 2)
                 support = round(current_price * 0.9975, 2)
                 
+                # Kalkulasi Risiko Skenario Buy & Sell
                 sl_buy = round(current_price * 0.9985, 2)
                 tp_buy = round(current_price * 1.0035, 2)
                 
                 sl_sell = round(current_price * 1.0015, 2)
                 tp_sell = round(current_price * 0.9965, 2)
                 
-                sniper_signal = "⏳ *SCALPING STATUS:* Menunggu momentum di area S&D."
+                # Logika Berjenjang (Hierarki Konfluensi Anti-Bentrok)
+                confluence_status = "⏳ *HIERARKI STATUS:* Menunggu harga menyentuh zona konfluensi S&D & RSI."
                 
+                # Prioritas 1: Sinyal BUY (Terjadi jika harga di bawah/mendekati Support + S&D Demand + Konfirmasi Oversold)
                 if current_price <= support * 1.0005:
-                    sniper_signal = (
-                        f"🟢 *SCALPER BUY SIGNAL (TF 1M-5M)*\n"
-                        f"- 📍 Area: Dekat Support\n"
+                    confluence_status = (
+                        f"🟢 *HIERARKI BUY SIGNAL (VALID)*\n"
+                        f"- 📍 **Layer 1 (S&D):** Area Demand / Support Terpenuhi\n"
+                        f"- 📊 **Layer 2 (Momentum):** Indikator RSI Oversold (Pantulan)\n"
                         f"- ⚡ **Action:** Open BUY Cepat\n"
                         f"- 🛑 **SL Rapat:** `${sl_buy:,.2f}`\n"
                         f"- 🎯 **TP Scalp:** `${tp_buy:,.2f}`"
                     )
+                # Prioritas 2: Sinyal SELL (Terjadi jika harga di atas/mendekati Resistance + S&D Supply + Konfirmasi Overbought)
                 elif current_price >= resistance * 0.9995:
-                    sniper_signal = (
-                        f"🔴 *SCALPER SELL SIGNAL (TF 1M-5M)*\n"
-                        f"- 📍 Area: Dekat Resistance\n"
+                    confluence_status = (
+                        f"🔴 *HIERARKI SELL SIGNAL (VALID)*\n"
+                        f"- 📍 **Layer 1 (S&D):** Area Supply / Resistance Terpenuhi\n"
+                        f"- 📊 **Layer 2 (Momentum):** Indikator RSI Overbought (Pembalikan)\n"
                         f"- ⚡ **Action:** Open SELL Cepat\n"
                         f"- 🛑 **SL Rapat:** `${sl_sell:,.2f}`\n"
                         f"- 🎯 **TP Scalp:** `${tp_sell:,.2f}`"
                     )
                 
-                return round(current_price, 2), resistance, support, sniper_signal
+                return round(current_price, 2), resistance, support, confluence_status
     except Exception as e:
         print(f"Error Gold API: {e}")
     
@@ -80,7 +86,7 @@ def get_gmgn_memes_with_charts():
                 name = base_token.get("name", "Token")
                 symbol = base_token.get("symbol", "UNKNOWN")
                 pair_address = p.get("pairAddress", "")
-                token_address = base_token.get("address", "")
+                token_address = p.get("address", "")
                 
                 if symbol == "SOL" or symbol in seen:
                     continue
@@ -127,24 +133,24 @@ def background_price_monitor():
             if USER_CHAT_ID:
                 p, r, s, signal = get_market_data()
                 
-                # Cek apakah ada posisi aktif yang sedang dipantau target TP/SL-nya
+                # Pelacakan target TP & SL otomatis di latar belakang
                 if active_position == "BUY":
                     if p >= target_tp:
-                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (BUY)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n✅ *Status:PROFIT Selesai!*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (BUY)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot: `${p:,.2f}`\n✅ *Status: Selesai Profit!*", parse_mode="Markdown")
                         active_position = None
                     elif p <= target_sl:
-                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (BUY)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n❌ *Status: Evaluasi Loss Disiplin.*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (BUY)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Disiplin Cut Loss.*", parse_mode="Markdown")
                         active_position = None
                         
                 elif active_position == "SELL":
                     if p <= target_tp:
-                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (SELL)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n✅ *Status: PROFIT Selesai!*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🎯 *TARGET TAKE PROFIT TERCAPAI! (SELL)*\n- Harga TP: `${target_tp:,.2f}`\n- Harga Spot: `${p:,.2f}`\n✅ *Status: Selesai Profit!*", parse_mode="Markdown")
                         active_position = None
                     elif p >= target_sl:
-                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot Saat Ini: `${p:,.2f}`\n❌ *Status: Evaluasi Loss Disiplin.*", parse_mode="Markdown")
+                        bot.send_message(USER_CHAT_ID, f"🛑 *STOP LOSS TERSENTUH! (SELL)*\n- Harga SL: `${target_sl:,.2f}`\n- Harga Spot: `${p:,.2f}`\n❌ *Status: Disiplin Cut Loss.*", parse_mode="Markdown")
                         active_position = None
 
-                # Kirim alert sinyal baru jika belum ada posisi aktif
+                # Kirim alert jika ada sinyal hierarki valid baru
                 if "SIGNAL" in signal and signal != last_alert_status and active_position is None:
                     last_alert_status = signal
                     if "BUY" in signal:
@@ -159,10 +165,10 @@ def background_price_monitor():
                         target_sl = round(p * 1.0015, 2)
                         
                     alert_text = (
-                        f"⚡ *AUTOMATIC SCALPING ALERT!* ⚡\n\n"
+                        f"⚡ *HIERARCHICAL CONFLUENCE ALERT!* ⚡\n\n"
                         f"📈 *XAUUSD Live Price:* `${p:,.2f}`\n\n"
                         f"{signal}\n\n"
-                        f"🤖 *Bot mulai melacak target TP & SL secara otomatis sampai selesai.*"
+                        f"🤖 *Bot mengunci target TP & SL secara otomatis.*"
                     )
                     bot.send_message(USER_CHAT_ID, alert_text, parse_mode="Markdown", disable_web_page_preview=False)
                 elif "Menunggu" in signal:
@@ -176,9 +182,9 @@ def send_welcome(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
     text = (
-        "🤖 *Finbot Scalper Engine Active*\n\n"
+        "🤖 *Finbot Hierarchical Engine Active*\n\n"
         "Perintah yang tersedia:\n"
-        "👉 `/scalp` atau `/tf15` - Sinyal Buy & Sell Scalping XAUUSD\n"
+        "👉 `/scalp` atau `/tf15` - Cek Setup Berjenjang (Buy & Sell)\n"
         "👉 `/news` - Panduan Sentimen Makro US\n"
         "👉 `/meme` - Saringan koin meme Solana"
     )
@@ -196,11 +202,11 @@ def send_scalp(message):
     tp_sell = round(p * 0.9965, 2)
     
     text = (
-        f"⚡ *XAUUSD Scalping Setup (Buy & Sell)*\n"
+        f"🧠 *XAUUSD Hierarchical Setup (Buy & Sell)*\n"
         f"- Harga Spot: `${p:,.2f}`\n"
-        f"- Support Terdekat: `${s:,.2f}`\n"
-        f"- Resistance Terdekat: `${r:,.2f}`\n\n"
-        f"📌 *Kalkulasi Cepat (Risk Management 1:2.5):*\n"
+        f"- Support/Demand: `${s:,.2f}`\n"
+        f"- Resistance/Supply: `${r:,.2f}`\n\n"
+        f"📌 *Kalkulasi Risiko (Risk Management 1:2.5):*\n"
         f"🟢 **Setup BUY:** SL `${sl_buy:,.2f}` | TP `${tp_buy:,.2f}`\n"
         f"🔴 **Setup SELL:** SL `${sl_sell:,.2f}` | TP `${tp_sell:,.2f}`\n\n"
         f"{signal}\n\n"
@@ -213,11 +219,10 @@ def send_us_news(message):
     global USER_CHAT_ID
     USER_CHAT_ID = message.chat.id
     news_text = (
-        "🇺🇸 *US Macro & Fundamental Guide (XAUUSD)*\n\n"
-        "⚠️ *Aturan Scalper Buy & Sell:*\n"
-        "1. Jangan ambil posisi berlawanan arah saat rilis berita merah.\n"
-        "2. Bot kini otomatis melacak apakah target TP atau SL tercapai setelah sinyal diberikan.\n"
-        "3. Jaga kedisiplinan target maksimal 2x loss seminggu!"
+        "🇺🇸 *US Macro & Hierarchical Guide*\n\n"
+        "⚠️ *Aturan Sistem Berjenjang:*\n"
+        "1. Bot memproses layer S&D dan indikator secara terstruktur tanpa bentrok.\n"
+        "2. Fokus pada disiplin eksekusi dan jaga batas maksimal 2x loss per minggu."
     )
     bot.reply_to(message, news_text, parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -238,7 +243,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "Finbot Tracker Engine is running!", 200
+    return "Finbot Hierarchical Engine is running!", 200
 
 if __name__ == "__main__":
     RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
