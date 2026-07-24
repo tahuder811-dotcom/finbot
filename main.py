@@ -20,7 +20,6 @@ def get_market_data():
                 resistance = round(current_price * 1.003, 2)
                 support = round(current_price * 0.997, 2)
                 
-                # Logika deteksi Sniper Entry S&D
                 sniper_signal = "⏳ Menunggu area Demand/Supply valid (Price Action)"
                 if current_price <= support * 1.001:
                     sniper_signal = "🟢 *SNIPER BUY ALERT!* Harga di Area Support/Demand Kuat."
@@ -33,43 +32,52 @@ def get_market_data():
     
     return 2350.50, 2360.00, 2340.00, "Netral"
 
-# Fungsi Saringan Koin Meme Live (Solana) untuk Sniper
+# Fungsi Saringan Koin Meme Live (Solana Pairs) yang Akurat
 def get_gmgn_memes():
     try:
-        url = "https://api.dexscreener.com/latest/dex/search?q=solana"
+        # Mengambil data profil token terbaru yang mencakup koin-koin aktif di pasaran
+        url = "https://api.dexscreener.com/token-profiles/latest/v1"
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=6)
         
         if response.status_code == 200:
-            data = response.json()
-            pairs = data.get("pairs", [])
-            
+            tokens = response.json()
             meme_list = []
-            # Perbaikan kurung siku yang sebelumnya error
-            sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
-            sol_pairs = sorted(sol_pairs, key=lambda x: x.get("priceChange", {}).get("h1", 0) or 0, reverse=True)
             
-            for item in sol_pairs[:5]:
-                base_token = item.get("baseToken", {})
-                name = base_token.get("name", "Token")
-                symbol = base_token.get("symbol", "UNKNOWN")
+            # Filter khusus jaringan Solana
+            sol_tokens = [t for t in tokens if t.get("chainId") == "solana"]
+            if not sol_tokens:
+                sol_tokens = tokens
                 
-                h1_change = item.get("priceChange", {}).get("h1", 0)
-                if h1_change is None:
-                    h1_change = 0
-                h1_change = round(float(h1_change), 2)
-                
-                status_sniper = "🎯 Potensi Masuk" if h1_change > 10 else "👀 Pantau"
-                
-                if h1_change > 0:
-                    meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [{status_sniper}]")
-                else:
-                    meme_list.append(f"🔴 *{name}* (`{symbol}`) - 1h: `{h1_change}%`")
+            for item in sol_tokens[:5]:
+                token_address = item.get("tokenAddress", "")
+                if token_address:
+                    # Ambil data pasangan harga spesifik per koin
+                    detail_res = requests.get(f"https://api.dexscreener.com/latest/dex/tokens/{token_address}", headers=headers, timeout=3)
+                    if detail_res.status_code == 200:
+                        pair_data = detail_res.json().get("pairs", [])
+                        if pair_data:
+                            p = pair_data[0]
+                            base_token = p.get("baseToken", {})
+                            name = base_token.get("name", "Token")
+                            symbol = base_token.get("symbol", "UNKNOWN")
+                            
+                            h1_change = p.get("priceChange", {}).get("h1", 0)
+                            if h1_change is None:
+                                h1_change = 0
+                            h1_change = round(float(h1_change), 2)
+                            
+                            status_sniper = "🎯 Potensi Masuk" if h1_change > 10 else "👀 Pantau"
+                            
+                            if h1_change > 0:
+                                meme_list.append(f"🟢 *{name}* (`{symbol}`) - 1h: `+{h1_change}%` [{status_sniper}]")
+                            else:
+                                meme_list.append(f"🔴 *{name}* (`{symbol}`) - 1h: `{h1_change}%`")
             
             if meme_list:
                 return "\n".join(meme_list)
     except Exception as e:
-        print(f"Error DexScreener Live Search: {e}")
+        print(f"Error DexScreener Profiles: {e}")
     
     return "Belum ada sinyal koin meme potensial yang tertangkap saat ini."
 
@@ -98,7 +106,7 @@ def send_price(message):
 @bot.message_handler(commands=['meme'])
 def send_meme(message):
     trending = get_gmgn_memes()
-    bot.reply_to(message, f"🚀 *Sniper Screener Koin Meme (Solana)*\n\n{trending}", parse_mode="Markdown")
+    bot.reply_to(message, f"🚀 *Sniper Screener Koin Meme (Solana)*\n\n{potensial}", parse_mode="Markdown")
 
 @app.route(f"/{TOKEN}", methods=['POST'])
 def webhook():
