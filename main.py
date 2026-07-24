@@ -2,10 +2,13 @@ import os
 import telebot
 import yfinance as yf
 import requests
+from flask import Flask, request
 
-# Mengambil token dengan aman sebagai teks
+# Mengambil token dengan aman
 TOKEN = str(os.getenv("TELEGRAM_BOT_TOKEN", ""))
 bot = telebot.TeleBot(TOKEN)
+
+app = Flask(__name__)
 
 # Fungsi ambil harga emas asli
 def get_market_data():
@@ -44,7 +47,7 @@ def get_gmgn_memes():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     text = (
-        "🤖 *Finbot S&D Engine Active*\n\n"
+        "🤖 *Finbot S&D Engine Active (Webhook)*\n\n"
         "Perintah:\n"
         "👉 `/price` atau `/tf15` - Cek harga emas\n"
         "👉 `/meme` - Cek tren meme GMGN"
@@ -67,7 +70,24 @@ def send_meme(message):
     trending = get_gmgn_memes()
     bot.reply_to(message, f"🚀 *Tren Meme GMGN*\n\n{trending}", parse_mode="Markdown")
 
+# Endpoint Flask untuk menerima webhook dari Telegram
+@app.route(f"/{TOKEN}", methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
+
+@app.route('/')
+def index():
+    return "Finbot is running via Webhook!", 200
+
 if __name__ == "__main__":
-    print("Finbot is polling 24/7...")
-    bot.remove_webhook()  # Membersihkan webhook lama yang bikin error 409 Conflict
-    bot.infinity_polling()
+    # Hapus webhook lama lalu set webhook baru ke URL Render kamu secara otomatis
+    RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") # Render otomatis isi variabel ini
+    if RENDER_URL:
+        bot.remove_webhook()
+        bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
+    
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
